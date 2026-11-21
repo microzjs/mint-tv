@@ -4,6 +4,10 @@
 
 ![实机界面](docs/screenshot.jpg)
 
+## 1.0.1 更新
+
+横屏请求仅限应用前台，退到后台时立即释放；正常退出移除应用任务。已在小米 14 验证切换至 Clash、Gmail 和桌面后保持竖屏。应用不改写系统旋转设置。方向问题的调试原因和回归步骤见 [方向回归记录](docs/orientation-regression.md)。
+
 ## 功能
 
 - 从 [CHINA-IPTV](https://github.com/xisohi/CHINA-IPTV) 的 `Unicast/fujian/mobile.txt` 每日尝试更新；失败保留缓存，启动时补更。

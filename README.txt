@@ -1,4 +1,4 @@
-薄荷电视 1.0.0
+薄荷电视 1.0.1
 
 面向 Android 电视盒子，也可在手机横屏使用。已安装到连接的小米 14。
 
@@ -38,3 +38,6 @@
 默认 release 使用本机 Android debug keystore 自签名，便于个人安装；重新构建的 APK 若签名不同，不能直接覆盖已安装版本。
 最低 Android 6.0（API 23），目标 API 34。
 解析测试：用 javac 编译 app/src/main/java/cn/mint/tv/Playlist.java 和 tests/PlaylistTest.java，然后运行 PlaylistTest 并传入 assets/fujian-mobile.txt 的路径。
+
+1.0.1 方向修复
+横屏请求仅在应用前台生效，退到后台时释放；正常退出移除任务。应用不写入系统旋转设置。已在小米 14 验证最小化、直接切换、全屏返回与退出后 Clash / Gmail 保持竖屏。关于调试工具可能改变系统方向锁定的说明，见 docs/orientation-regression.md。

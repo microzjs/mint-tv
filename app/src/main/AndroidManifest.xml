@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ <uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/><uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/><uses-permission android:name="android.permission.WAKE_LOCK"/><uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"/>
+ <uses-feature android:name="android.software.leanback" android:required="false"/><uses-feature android:name="android.hardware.wifi" android:required="false"/><uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+ <application android:label="薄荷电视" android:icon="@drawable/ic_launcher" android:banner="@drawable/banner" android:theme="@style/AppTheme" android:usesCleartextTraffic="true" android:allowBackup="false" android:supportsRtl="true">
+ <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="landscape" android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize">
+ <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/><category android:name="android.intent.category.LEANBACK_LAUNCHER"/></intent-filter></activity>
+ <service android:name=".UpdateJob" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true"/>
+ </application>
+</manifest>
+

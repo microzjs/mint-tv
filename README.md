@@ -1,8 +1,18 @@
 # 薄荷电视 · Mint TV
 
-原生 Android IPTV 播放器，面向电视盒子和遥控器操作，兼容手机横屏使用。默认订阅福建移动频道源。
+原生 Android IPTV 播放器，面向电视盒子和遥控器操作，兼容手机横屏使用。首次联网识别公网出口的省份和运营商，优先匹配该地区的移动／电信／联通频道源；识别失败保留缓存，初始备用列表为福建移动。
 
 ![实机界面](docs/screenshot.jpg)
+
+## 1.1.0 · 电视交互与网络适配
+
+- 主页使用分类、频道和预览三栏；分类随焦点切换，频道按一次确定直接全屏。电视端再次打开可继续上次频道。
+- 全屏按确定打开左侧双列选台面板；分类浏览不停止当前播放器，确定频道后才换台。返回先收起面板，再返回主页。全屏不显示右下角返回按钮。
+- 首次、启动和网络变化时识别盒子公网出口；省份、运营商相同保留原源，仅在每日更新时刷新列表；地区或运营商变化后下载对应列表并原子替换缓存。
+- 识别或下载失败不清空可用列表；可在设置中手动选择省份、运营商，或切回自动模式。
+- 公网识别通过 HTTPS 访问 IPIP，失败时尝试 ipwho.is；不保存公网 IP，识别服务方会看到请求出口。代理／VPN 可能影响匹配，手动模式停止后续自动识别。
+
+详见 [TV 交互与适配说明](docs/tv-1.1.0.md)。
 
 ## 1.0.1 更新
 
@@ -28,11 +38,11 @@
 
 ```bash
 # macOS / Linux
-./gradlew :app:assembleDebug :app:lintDebug
+./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest
 bash scripts/test-playlist.sh
 
 # Windows PowerShell
-.\gradlew.bat :app:assembleDebug :app:lintDebug
+.\gradlew.bat :app:assembleDebug :app:lintDebug :app:testDebugUnitTest
 .\scripts\test-playlist.ps1
 ```
 
@@ -55,11 +65,11 @@ APK 输出：`app/build/outputs/apk/debug/app-debug.apk`。安装：`adb install
 | `app/src/main/java/cn/mint/tv/Store.java` | 订阅、缓存、导入与更新任务配置 |
 | `app/src/main/java/cn/mint/tv/UpdateJob.java` | Android 每日后台更新任务 |
 | `app/src/main/res/drawable/` | 原创薄荷电视图标和 TV banner |
-| `tests/PlaylistTest.java` | 独立于 Android 的解析测试 |
+| `tests/PlaylistTest.java`、`tests/NetworkProfileTest.java` | 独立于 Android 的解析和网络匹配规则测试 |
 
 ## 遥控器与使用
 
-方向键移动焦点，确定键播放，预览右下角按钮进入全屏。全屏时上下换台、左键选线路、右键返回列表、确定键打开播放菜单，返回键退出全屏。菜单键可打开线路列表；手机可能截获该键，此时点击“线路”。右上角可导入、管理订阅或立即更新。详见 [使用说明](README.txt)。
+主页方向键移动焦点，确定直接全屏播放。全屏确定键打开左侧分类／频道面板，上下浏览、左右切换两列；确定换台，返回收起面板，再按返回回主页。未打开面板时上下快捷换台，左键打开分类，右键或菜单键选线路。菜单键可打开线路列表；手机可能截获该键，此时点击“线路”。右上角可导入、管理订阅或立即更新。详见 [使用说明](README.txt)。
 
 ## 验证与当前范围
 

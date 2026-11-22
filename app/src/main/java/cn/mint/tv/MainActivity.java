@@ -32,6 +32,7 @@ public class MainActivity extends Activity {
     int sourceIndex=0, generation=0;
     boolean fullscreen=false, drawerOpen=false, updating=false, stopped=true, rendered=false;
     boolean pendingDetection=false, pendingForce=false, loadingLists=false;
+    boolean consumeSelectUp=false;
     FrameLayout root, videoBox, drawer;
     LinearLayout home;
     ViewGroup previewParent;
@@ -249,8 +250,10 @@ public class MainActivity extends Activity {
                 closeDrawer();}
         });
         if(focusGroups)drawerGroups.requestFocus();else drawerChannels.requestFocus();
+        android.util.Log.i("MintTV","DRAWER_OPEN channel="+current.name+" playing="+(player!=null&&player.isPlaying()));
     }
-    void closeDrawer(){if(!drawerOpen)return;drawerOpen=false;root.removeView(drawer);drawer=null;videoBox.requestFocus();}
+    void closeDrawer(){if(!drawerOpen)return;drawerOpen=false;root.removeView(drawer);drawer=null;videoBox.requestFocus();
+        android.util.Log.i("MintTV","DRAWER_CLOSE channel="+(current==null?"":current.name)+" playing="+(player!=null&&player.isPlaying()));}
     void setFullscreen(boolean yes){
         if(fullscreen==yes)return;closeDrawer();fullscreen=yes;
         if(yes){
@@ -318,11 +321,16 @@ public class MainActivity extends Activity {
         play(pool.get((at+step+pool.size())%pool.size()));
     }
     @Override public boolean dispatchKeyEvent(KeyEvent e){
+        // The opening DOWN belongs to the player, so its UP must not select a drawer row.
+        if(consumeSelectUp&&(e.getKeyCode()==KeyEvent.KEYCODE_DPAD_CENTER||e.getKeyCode()==KeyEvent.KEYCODE_ENTER)){
+            if(e.getAction()==KeyEvent.ACTION_UP)consumeSelectUp=false;
+            return true;
+        }
         if(e.getAction()==KeyEvent.ACTION_DOWN){int k=e.getKeyCode();
             if(k==KeyEvent.KEYCODE_MENU){sources();return true;}
             if(!drawerOpen&&(k==KeyEvent.KEYCODE_CHANNEL_UP||k==KeyEvent.KEYCODE_CHANNEL_DOWN)){channelStep(k==KeyEvent.KEYCODE_CHANNEL_UP?1:-1);return true;}
             if(fullscreen&&!drawerOpen){
-                if(k==KeyEvent.KEYCODE_DPAD_CENTER||k==KeyEvent.KEYCODE_ENTER){openDrawer(false);return true;}
+                if(k==KeyEvent.KEYCODE_DPAD_CENTER||k==KeyEvent.KEYCODE_ENTER){consumeSelectUp=true;openDrawer(false);return true;}
                 if(k==KeyEvent.KEYCODE_DPAD_LEFT){openDrawer(true);return true;}
                 if(k==KeyEvent.KEYCODE_DPAD_RIGHT){sources();return true;}
                 if(k==KeyEvent.KEYCODE_DPAD_UP||k==KeyEvent.KEYCODE_DPAD_DOWN){channelStep(k==KeyEvent.KEYCODE_DPAD_UP?-1:1);return true;}

@@ -57,9 +57,9 @@ public final class Store {
    desired=new NetworkProfile(prefs(c).getString("manualProvince","fujian"),prefs(c).getString("manualCarrier","mobile"));
    geoNote="手动选择 · "+desired.label();
   }else if(forceDetection||now-prefs(c).getLong("geoTime",0)>60000){
-   try{desired=NetworkResolver.resolve();geoNote="自动识别 · "+desired.label();
+   try{desired=NetworkResolver.resolve();geoNote="自动识别 · "+desired.label();android.util.Log.i("MintTV","NETWORK_MATCH "+desired.key());
     prefs(c).edit().putString("detectedProvince",desired.province).putString("detectedCarrier",desired.carrier).commit();
-   }catch(Exception e){geoNote=e.getMessage();}
+   }catch(Exception e){geoNote=e.getMessage();android.util.Log.w("MintTV","NETWORK_LOOKUP_FAILED retained="+active.key());}
    prefs(c).edit().putLong("geoTime",now).putString("geoStatus",geoNote).commit();
   }else{
    try{desired=new NetworkProfile(prefs(c).getString("detectedProvince",active.province),prefs(c).getString("detectedCarrier",active.carrier));}catch(Exception ignored){}
@@ -72,7 +72,7 @@ public final class Store {
   if(needBase){
    try{String text=fetch(desired.url());if(Playlist.parse(text).isEmpty())throw new IOException("匹配地区的源列表为空");
     prefs(c).edit().putString("base",text).putString("province",desired.province).putString("carrier",desired.carrier)
-     .putLong("baseTime",now).commit();ok++;changed=true;swapped=profileChanged;
+     .putLong("baseTime",now).commit();ok++;changed=true;swapped=profileChanged;android.util.Log.i("MintTV","PLAYLIST_UPDATED "+desired.key());
    }catch(Exception e){fail++;reason=e.getMessage();}
   }
   if(due){JSONArray a=imports(c);for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);String url=o.optString("url");if(url.isEmpty())continue;
@@ -82,10 +82,16 @@ public final class Store {
    :swapped?"已匹配 "+desired.label()+"，更新频道源"
    :ok>0?"更新完成 · "+activeProfile(c).label()+" · "+ok+" 个订阅"
    :"省份与运营商未变化 · 保留现有频道源";
+  if(!needBase)android.util.Log.i("MintTV","NETWORK_RETAIN "+active.key());
   if(!geoNote.isEmpty())result+="\n"+geoNote;
   prefs(c).edit().putLong("attempt",now).putString("result",result).commit();
   return new RefreshResult(result,changed,swapped);
  }
- public static void schedule(Context c){JobScheduler s=c.getSystemService(JobScheduler.class);s.schedule(new JobInfo.Builder(2401,new ComponentName(c,UpdateJob.class)).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setPersisted(true).setPeriodic(24*60*60*1000L).setBackoffCriteria(30*60*1000L,JobInfo.BACKOFF_POLICY_EXPONENTIAL).build());}
+ public static void schedule(Context c){
+  JobScheduler s=c.getSystemService(JobScheduler.class);
+  // Reopening the app must not restart the periodic window or cause an extra daily download.
+  for(JobInfo existing:s.getAllPendingJobs())if(existing.getId()==2401)return;
+  s.schedule(new JobInfo.Builder(2401,new ComponentName(c,UpdateJob.class)).setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).setPersisted(true).setPeriodic(24*60*60*1000L).setBackoffCriteria(30*60*1000L,JobInfo.BACKOFF_POLICY_EXPONENTIAL).build());
+ }
 }
 

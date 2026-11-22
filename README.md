@@ -20,7 +20,7 @@
 
 ## 功能
 
-- 从 [CHINA-IPTV](https://github.com/xisohi/CHINA-IPTV) 的 `Unicast/fujian/mobile.txt` 每日尝试更新；失败保留缓存，启动时补更。
+- 从 [CHINA-IPTV](https://github.com/xisohi/CHINA-IPTV) 对应省份/运营商的 `Unicast/<province>/<carrier>.txt` 每日尝试更新；失败保留缓存，启动时补更。
 - 同名频道合并多条线路，按原始顺序实际试播；报错、14 秒无首帧或缓冲超时自动切换到下一条，也可手动选择。
 - 频道分组、搜索、收藏、预览与全屏播放。
 - 导入 M3U / M3U8 / TXT 文件和 HTTP/HTTPS 订阅网址；支持 UTF-8 和 GB18030 编码。网址随每日任务更新，本地文件保留导入内容。
@@ -75,7 +75,7 @@ APK 输出：`app/build/outputs/apk/debug/app-debug.apk`。安装：`adb install
 
 2026-11-21 在小米 14 上验证了 CCTV1、CCTV2、安徽卫视播放，以及失效首源到第二条线路的自动切换、手动选线、全屏进出、网址和本地 TXT 导入、移除导入、更新任务及缓存。解析器测试和本地 release 构建、Lint 已通过。
 
-尚未逐条测试全部线路，尚未在实体电视盒子测试。包含 HLS、DASH 及常见 HTTP/UDP 媒体支持；RTP/RTSP 目前跳过，需要转换为 HTTP 代理源。不含 EPG、回看、录制功能。
+1.1.0 已在 Android 14 / 1080p Google TV 盒子验证全屏选台、浏览分类时持续播放、确定换台与返回主页。现场识别福建移动，同网重新进入时保留原源。未逐条检测全部线路；跨省或换运营商的分支以单元测试覆盖，未实际迁移网络。包含 HLS、DASH 及常见 HTTP/UDP 媒体支持；RTP/RTSP 目前跳过，需要转换为 HTTP 代理源。不含 EPG、回看、录制功能。
 
 频道数据来自 [xisohi/CHINA-IPTV](https://github.com/xisohi/CHINA-IPTV)，界面风格参考 [LunaTV](https://github.com/MoonTechLab/LunaTV/releases)，播放器使用 [AndroidX Media3](https://github.com/androidx/media)。应用为原生新实现，未复制 LunaTV 源码或图片。
 

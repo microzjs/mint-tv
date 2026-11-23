@@ -4,6 +4,16 @@
 
 ![实机界面](docs/screenshot.jpg)
 
+## 1.3.0 · 轻量存储与日常选台
+
+- 大列表、检测任务、检测结果和小进度分桶保存；旧版数据在后台迁移，保留原 XML，日常界面读取内存缓存。
+- 本地 JSON 备份 / 恢复订阅、收藏和设置；恢复前完整校验，检测结果按新设备网络重建。
+- 隐藏频道管理和单频道重检；数字键输入稳定频道号，1.4 秒自动确认；新增最近观看（最多 20 个）。
+- 可选 XMLTV / XMLTV.gz 节目单，仅保留每频道当前和下一节目，不添加节目墙或第二个前台播放器。
+- R8 和资源压缩；正式 release 采用外部独立签名配置，不再默认使用 debug 签名。
+
+使用、数据迁移、签名与验收边界见 [1.3.0 说明](docs/lightweight-1.3.0.md)。
+
 ## 1.2.0 · 持久检测与播放状态
 
 首次匹配网络后，后台逐一静音试播当前快照的所有频道源，缓存首个成功地址与失败结果；同省同运营商不重复全量检测，中断可续检。所有源均确认失败的频道自动隐藏，设置中手动重新检测后成功恢复。全屏确定选台时，右上角显示实时下载流码率、声道、音视频格式和解码器。细节与测试范围见 [1.2.0 说明](docs/health-1.2.0.md)。
@@ -56,9 +66,11 @@ APK 输出：`app/build/outputs/apk/debug/app-debug.apk`。安装：`adb install
 
 ## GitHub 自动构建
 
-推送、Pull Request 或在 Actions 页面手动运行 **Android build**，会运行解析测试、Android Lint 并构建 Debug APK。成功后在对应运行的 **Artifacts** 下载 `mint-tv-debug`。
+推送、Pull Request 或在 Actions 页面手动运行 **Android build**，会运行解析测试、Android Lint、单元测试，并构建 Debug 与压缩后的 unsigned Release。成功后可在 **Artifacts** 下载 `mint-tv-debug` 或 `mint-tv-release-unsigned`。未配置独立签名的 release 不能直接安装。
 
-调试包及当前 release 配置使用构建机器的 Android debug keystore。不同机器或 CI 生成的签名可能不同，不能保证覆盖手机已安装版本。需要稳定发布时，应自行配置独立 release 签名，并通过本地环境或 GitHub Secrets 提供密钥；不要把签名文件提交到仓库。
+正式签名通过四个本地环境变量提供：`MINT_KEYSTORE`、`MINT_STORE_PASSWORD`、`MINT_KEY_ALIAS`、`MINT_KEY_PASSWORD`。全部未设置时输出 unsigned Release；不自动退回 debug 签名。不将密钥、口令提交到仓库。详见版本说明。
+
+`assembleCompat` 使用本机原 debug key，供已有开发版覆盖测试；它保留 R8 压缩，但并非正式签名发布包。换机器或 CI 的 debug key 通常不同，不能覆盖已有安装。
 
 ## 代码结构
 
@@ -79,7 +91,7 @@ APK 输出：`app/build/outputs/apk/debug/app-debug.apk`。安装：`adb install
 
 2026-11-21 在小米 14 上验证了 CCTV1、CCTV2、安徽卫视播放，以及失效首源到第二条线路的自动切换、手动选线、全屏进出、网址和本地 TXT 导入、移除导入、更新任务及缓存。解析器测试和本地 release 构建、Lint 已通过。
 
-1.1.0 已在 Android 14 / 1080p Google TV 盒子验证全屏选台、浏览分类时持续播放、确定换台与返回主页。现场识别福建移动，同网重新进入时保留原源。未逐条检测全部线路；跨省或换运营商的分支以单元测试覆盖，未实际迁移网络。包含 HLS、DASH 及常见 HTTP/UDP 媒体支持；RTP/RTSP 目前跳过，需要转换为 HTTP 代理源。不含 EPG、回看、录制功能。
+1.1.0 已在 Android 14 / 1080p Google TV 盒子验证全屏选台、浏览分类时持续播放、确定换台与返回主页。现场识别福建移动，同网重新进入时保留原源。未逐条检测全部线路；跨省或换运营商的分支以单元测试覆盖，未实际迁移网络。包含 HLS、DASH 及常见 HTTP/UDP 媒体支持；RTP/RTSP 目前跳过，需要转换为 HTTP 代理源。1.3.0 增加可选当前/下一节目单；不含回看和录制。
 
 频道数据来自 [xisohi/CHINA-IPTV](https://github.com/xisohi/CHINA-IPTV)，界面风格参考 [LunaTV](https://github.com/MoonTechLab/LunaTV/releases)，播放器使用 [AndroidX Media3](https://github.com/androidx/media)。应用为原生新实现，未复制 LunaTV 源码或图片。
 

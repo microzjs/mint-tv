@@ -25,3 +25,11 @@
 需要 JDK17、SDK34，运行 gradlew.bat :app:assembleDebug :app:lintDebug :app:testDebugUnitTest。
 独立解析和地区规则测试运行 scripts/test-playlist.ps1（Windows）或 bash scripts/test-playlist.sh。
 安装包签名与当前盒子 1.0.1 一致，可覆盖升级；不应卸载以免清除导入和收藏。
+
+
+1.3.0 轻量更新：
+列表左侧显示频道号，数字键输入后等待约 1.4 秒或按确定；新增“最近观看”。
+设置 → 更多设置：隐藏频道单独重检、网络适配、可选 XMLTV 当前/下一节目单、本地备份和恢复。
+节目单需提供自己的 HTTP/HTTPS XMLTV 或 XMLTV.gz 地址，失败保留同配置缓存。
+备份文件包含订阅内容和可能存在的凭据，请妥善保管。恢复会替换源、收藏及设置，并重新检测。
+本次测试包保持原签名可覆盖；正式独立签名需另行配置，切勿为解决签名不匹配而直接卸载丢数据。

@@ -27,11 +27,18 @@ jobs:
       - name: Test playlist parser
         run: bash scripts/test-playlist.sh
       - name: Build and lint
-        run: ./gradlew --no-daemon :app:assembleDebug :app:lintDebug :app:testDebugUnitTest
+        run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease :app:lintDebug :app:testDebugUnitTest
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: mint-tv-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload unsigned optimized APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: mint-tv-release-unsigned
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
           retention-days: 30

@@ -2,9 +2,30 @@ plugins { id 'com.android.application' }
 android {
  namespace 'cn.mint.tv'
  compileSdk 34
- defaultConfig { applicationId 'cn.mint.tv'; minSdk 23; targetSdk 34; versionCode 4; versionName '1.2.0' }
+ defaultConfig { applicationId 'cn.mint.tv'; minSdk 23; targetSdk 34; versionCode 5; versionName '1.3.0' }
  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
- buildTypes { release { minifyEnabled false; signingConfig signingConfigs.debug } }
+ def keyPath = System.getenv('MINT_KEYSTORE')
+ def keyStorePassword = System.getenv('MINT_STORE_PASSWORD')
+ def keyAliasValue = System.getenv('MINT_KEY_ALIAS')
+ def keyPasswordValue = System.getenv('MINT_KEY_PASSWORD')
+ if ([keyPath,keyStorePassword,keyAliasValue,keyPasswordValue].any { it } && ![keyPath,keyStorePassword,keyAliasValue,keyPasswordValue].every { it }) {
+  throw new GradleException('Set all four MINT signing environment variables, or leave all unset.')
+ }
+ signingConfigs { if (keyPath) { production { storeFile file(keyPath); storePassword keyStorePassword; keyAlias keyAliasValue; keyPassword keyPasswordValue } } }
+ buildTypes {
+  release {
+   minifyEnabled true
+   shrinkResources true
+   proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+   if (keyPath) signingConfig signingConfigs.production
+  }
+  // Covers existing developer installs only when built with the original local debug key.
+  compat {
+   initWith release
+   signingConfig signingConfigs.debug
+   matchingFallbacks = ['release']
+  }
+ }
 }
 dependencies {
  testImplementation 'junit:junit:4.13.2'

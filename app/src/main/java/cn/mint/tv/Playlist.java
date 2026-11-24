@@ -7,25 +7,25 @@ import java.util.regex.*;
 public final class Playlist {
  public static final class Channel {
   public final String name, group;
-  public String tvgId="";
+  public String tvgId="",logo="";
   public final List<String> urls = new ArrayList<>();
   public Channel(String n,String g){name=n;group=g;}
  }
  public static List<Channel> parse(String text) {
   LinkedHashMap<String,Channel> map=new LinkedHashMap<>();
-  String group="导入频道",name="",tvgId="";
+  String group="导入频道",name="",tvgId="",logo="";
   for(String raw:text.replace("\uFEFF","").split("\r?\n")) {
    String line=raw.trim(); if(line.isEmpty()) continue;
    if(line.startsWith("#EXTINF:")) {
     int comma=line.lastIndexOf(','); name=comma>=0?line.substring(comma+1).trim():"直播";
     Matcher m=Pattern.compile("group-title=\"([^\"]*)\"").matcher(line);
-    if(m.find()) group=m.group(1); Matcher id=Pattern.compile("tvg-id=\"([^\"]*)\"").matcher(line);tvgId=id.find()?id.group(1):"";continue;
+    if(m.find()) group=m.group(1); Matcher id=Pattern.compile("tvg-id=\"([^\"]*)\"").matcher(line);tvgId=id.find()?id.group(1):"";Matcher image=Pattern.compile("tvg-logo=\"([^\"]*)\"").matcher(line);logo=image.find()?image.group(1):"";continue;
    }
    if(line.startsWith("#")) continue;
    int comma=line.indexOf(','); String url=line;
    if(comma>=0 && !line.matches("(?i)^(https?|udp|rtp|rtsp)://.*")) {
     name=line.substring(0,comma).trim();url=line.substring(comma+1).trim();
-    tvgId="";if(url.equals("#genre#")){group=name;name="";continue;}
+    tvgId="";logo="";if(url.equals("#genre#")){group=name;name="";continue;}
    }
    if(name.isEmpty()) name="直播";
    for(String u:url.split("#(?=(?:https?|udp|rtsp|rtp)://)")) {
@@ -34,7 +34,7 @@ public final class Playlist {
     u=u.trim();if(!u.matches("(?i)^(https?|udp|rtp|rtsp)://.+")) continue;
     String key=key(name); Channel c=map.get(key);
     if(c==null){c=new Channel(name,group);map.put(key,c);}
-    if(c.tvgId.isEmpty())c.tvgId=tvgId;
+    if(c.tvgId.isEmpty())c.tvgId=tvgId;if(c.logo.isEmpty())c.logo=logo;
     if(!c.urls.contains(u)) c.urls.add(u);
    }
   }
@@ -45,7 +45,7 @@ public final class Playlist {
   LinkedHashMap<String,Channel> m=new LinkedHashMap<>();
   for(List<Channel> list:Arrays.asList(a,b))for(Channel c:list){
    Channel d=m.get(key(c.name));if(d==null){d=new Channel(c.name,c.group);m.put(key(c.name),d);}
-   if(d.tvgId.isEmpty())d.tvgId=c.tvgId;for(String u:c.urls)if(!d.urls.contains(u))d.urls.add(u);
+   if(d.tvgId.isEmpty())d.tvgId=c.tvgId;if(d.logo.isEmpty())d.logo=c.logo;for(String u:c.urls)if(!d.urls.contains(u))d.urls.add(u);
   }return new ArrayList<>(m.values());
  }
 }

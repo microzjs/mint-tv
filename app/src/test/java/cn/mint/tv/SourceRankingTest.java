@@ -1,0 +1,15 @@
+package cn.mint.tv;
+import org.junit.*;import static org.junit.Assert.*;import java.util.*;import org.json.*;
+public class SourceRankingTest {
+ final List<String> urls=Arrays.asList("first","second","third","fourth");
+ JSONObject q(int w,int h){return SourceRanking.sample(1,w,h);}
+ @Test public void picksHighestResolutionAmongUsableSources()throws Exception{JSONObject quality=new JSONObject().put("first",q(720,576)).put("second",q(1920,1080)).put("third",q(1280,720));assertArrayEquals(new int[]{1,2,0,3},SourceRanking.order(urls,new JSONArray(Arrays.asList("first","second","third")),quality));}
+ @Test public void unavailable4kCannotBeatPlayable1080()throws Exception{JSONObject quality=new JSONObject().put("first",q(3840,2160)).put("second",q(1920,1080));assertEquals(1,SourceRanking.order(urls,new JSONArray(Arrays.asList("second")),quality)[0]);}
+ @Test public void tiesKeepOriginalProviderOrder()throws Exception{JSONObject quality=new JSONObject().put("first",q(1920,1080)).put("second",q(1920,1080));assertArrayEquals(new int[]{0,1,2,3},SourceRanking.order(urls,new JSONArray(Arrays.asList("second","first")),quality));}
+ @Test public void knownResolutionPrecedesUnknownPlayableSource()throws Exception{assertEquals(2,SourceRanking.order(urls,new JSONArray(Arrays.asList("first","third")),new JSONObject().put("third",q(1280,720)))[0]);}
+ @Test public void oldCacheWithoutResolutionKeepsFirstUsable(){assertArrayEquals(new int[]{1,3,0,2},SourceRanking.order(urls,new JSONArray(Arrays.asList("fourth","second")),null));}
+ @Test public void noGoodSourcesKeepAllFallbacks(){assertArrayEquals(new int[]{0,1,2,3},SourceRanking.order(urls,null,null));}
+ @Test public void preferredSourceAtEndStillTriesEveryOtherSource(){assertArrayEquals(new int[]{3,0,1,2},SourceRanking.withFirst(new int[]{0,1,2,3},3));}
+ @Test public void readsLegacyAndNewResumableScanStates(){assertEquals(1,SourceRanking.verdict(1));assertEquals(-1,SourceRanking.verdict(-1));assertEquals(1,SourceRanking.verdict(q(1920,1080)));assertEquals(0,SourceRanking.verdict(new JSONObject()));}
+ @Test public void rejectsImpossibleDimensionsForRanking(){assertEquals(0,SourceRanking.pixels(q(Integer.MAX_VALUE,2160)));assertEquals(0,SourceRanking.pixels(q(1920,0)));assertEquals(8294400L,SourceRanking.pixels(q(3840,2160)));}
+}

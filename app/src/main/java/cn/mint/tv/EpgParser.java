@@ -15,24 +15,25 @@ public final class EpgParser {
   JSONObject json()throws Exception{return new JSONObject().put("start",start).put("end",end).put("title",title);}
  }
  public static JSONObject parse(InputStream stream,Map<String,String> ids,Set<String> names,long now)throws Exception{
-  Map<String,String> aliases=new HashMap<>(ids);Map<String,Entry[]> selected=new HashMap<>();
+  Map<String,String> aliases=new HashMap<>(ids),byName=new HashMap<>(),logos=new HashMap<>();Set<String> ambiguous=new HashSet<>();for(String n:names){String k=ChannelNames.key(n);if(byName.containsKey(k)&&!byName.get(k).equals(n)){byName.remove(k);ambiguous.add(k);}else if(!ambiguous.contains(k))byName.put(k,n);}Map<String,Entry[]> selected=new HashMap<>();
   SAXParserFactory factory=SAXParserFactory.newInstance();factory.setNamespaceAware(false);
   try{factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd",false);}catch(Exception ignored){}
   try{factory.setFeature("http://xml.org/sax/features/external-general-entities",false);factory.setFeature("http://xml.org/sax/features/external-parameter-entities",false);}catch(Exception ignored){}
   javax.xml.parsers.SAXParser parser=factory.newSAXParser();org.xml.sax.XMLReader reader=parser.getXMLReader();
   reader.setProperty("http://xml.org/sax/properties/lexical-handler",new org.xml.sax.ext.DefaultHandler2(){public void startEntity(String name)throws SAXException{if(!Arrays.asList("amp","lt","gt","quot","apos","[dtd]").contains(name))throw new SAXException("不允许自定义实体");}});
   reader.setEntityResolver((publicId,systemId)->new InputSource(new StringReader("")));
-  reader.setContentHandler(new DefaultHandler(){String channelId,key,field="";StringBuilder text=new StringBuilder();long start,end;int elements;
+  reader.setContentHandler(new DefaultHandler(){String channelId,key,icon="",field="";StringBuilder text=new StringBuilder();long start,end;int elements;
    public void startElement(String uri,String local,String q,Attributes a)throws SAXException{
     if(++elements>500000)throw new SAXException("节目单项目过多");
-    if(q.equals("channel")){channelId=a.getValue("id");}
+    if(q.equals("channel")){channelId=a.getValue("id");icon="";}
+    if(q.equals("icon")&&channelId!=null){String value=a.getValue("src");if(value!=null&&value.matches("(?i)^https?://[^\\s]+$"))icon=value;}
     if(q.equals("programme")){key=aliases.get(a.getValue("channel"));start=time(a.getValue("start"));end=time(a.getValue("stop"));}
     if(q.equals("display-name")||q.equals("title")){field=q;text.setLength(0);}
    }
    public void characters(char[] c,int offset,int length){if(!field.isEmpty()&&text.length()<1024)text.append(c,offset,Math.min(length,1024-text.length()));}
    public void endElement(String uri,String local,String q){
-    if(q.equals("display-name")&&channelId!=null){String name=Playlist.key(text.toString().trim());if(names.contains(name)){if(!aliases.containsKey(channelId))aliases.put(channelId,name);};field="";}
-    if(q.equals("channel"))channelId=null;
+    if(q.equals("display-name")&&channelId!=null){String name=byName.get(ChannelNames.key(text.toString().trim()));if(name!=null){if(!aliases.containsKey(channelId))aliases.put(channelId,name);};field="";}
+    if(q.equals("channel")){String match=aliases.get(channelId);if(match!=null&&!icon.isEmpty())logos.put(match,icon);channelId=null;}
     if(q.equals("title")){field="";if(text.toString().trim().isEmpty()||key==null||start<0||end<=start||end<=now||start>now+48*3600000L)return;
      Entry[] pair=selected.get(key);if(pair==null){pair=new Entry[2];selected.put(key,pair);}Entry item=new Entry(start,end,text.toString().trim());
      int at=start<=now?0:1;if(pair[at]==null||(at==0?start>pair[at].start:start<pair[at].start))pair[at]=item;
@@ -41,7 +42,7 @@ public final class EpgParser {
    }
   });
   reader.parse(new InputSource(new Limited(stream,32*1024*1024)));
-  JSONObject out=new JSONObject();for(Map.Entry<String,Entry[]> e:selected.entrySet()){JSONObject pair=new JSONObject();if(e.getValue()[0]!=null)pair.put("now",e.getValue()[0].json());if(e.getValue()[1]!=null)pair.put("next",e.getValue()[1].json());out.put(e.getKey(),pair);}return out;
+  JSONObject out=new JSONObject();for(Map.Entry<String,Entry[]> e:selected.entrySet()){JSONObject pair=new JSONObject();if(e.getValue()[0]!=null)pair.put("now",e.getValue()[0].json());if(e.getValue()[1]!=null)pair.put("next",e.getValue()[1].json());out.put(e.getKey(),pair);}for(Map.Entry<String,String> e:logos.entrySet()){JSONObject pair=out.optJSONObject(e.getKey());if(pair==null){pair=new JSONObject();out.put(e.getKey(),pair);}pair.put("logo",e.getValue());}return out;
  }
  static long time(String value){try{if(value==null)return -1;String v=value.trim();if(v.matches("[0-9]{14}"))v+=" +0000";if(!v.matches("[0-9]{14} [+-][0-9]{4}"))return -1;
   SimpleDateFormat f=new SimpleDateFormat("yyyyMMddHHmmss Z",Locale.ROOT);f.setLenient(false);return f.parse(v).getTime();}catch(Exception e){return -1;}}

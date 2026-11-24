@@ -1,97 +1,100 @@
 # 薄荷电视 · Mint TV
 
-原生 Android IPTV 播放器，面向电视盒子和遥控器操作，兼容手机横屏使用。首次联网识别公网出口的省份和运营商，优先匹配该地区的移动／电信／联通频道源；识别失败保留缓存，初始备用列表为福建移动。
+**为 Android 电视盒子设计的轻量 IPTV 播放器。自动适配宽带网络，打开电视就能选台。**
 
-![实机界面](docs/screenshot.jpg)
+[![Android build](https://github.com/microzjs/mint-tv/actions/workflows/android.yml/badge.svg)](https://github.com/microzjs/mint-tv/actions/workflows/android.yml)
+![Android 6.0+](https://img.shields.io/badge/Android-6.0%2B-69edb4)
+![TV Remote](https://img.shields.io/badge/交互-电视遥控器优先-152229)
 
-## 1.3.0 · 轻量存储与日常选台
+## 主要功能
 
-- 大列表、检测任务、检测结果和小进度分桶保存；旧版数据在后台迁移，保留原 XML，日常界面读取内存缓存。
-- 本地 JSON 备份 / 恢复订阅、收藏和设置；恢复前完整校验，检测结果按新设备网络重建。
-- 隐藏频道管理和单频道重检；数字键输入稳定频道号，1.4 秒自动确认；新增最近观看（最多 20 个）。
-- 可选 XMLTV / XMLTV.gz 节目单，仅保留每频道当前和下一节目，不添加节目墙或第二个前台播放器。
-- R8 和资源压缩；正式 release 采用外部独立签名配置，不再默认使用 debug 签名。
+- **自动匹配省份与运营商**：识别公网出口，优先使用对应地区的移动／电信／联通源；支持手动选择。初始备用列表为福建移动。
+- **可用源内优先最高分辨率**：逐条静音试播，记录实际解码分辨率；优先选择已验证可播的最高分辨率源，失败自动尝试其他线路。
+- **同网复用，失败保留**：省份、运营商不变时沿用检测缓存；每天尝试更新源，断网或下载失败保留已有列表。
+- **遥控器直接选台**：数字频道号、收藏、最近观看；全屏按确定打开透明分类／频道面板，选台时直播继续播放。
+- **节目名称与台标**：选台面板下方展示正在观看频道的当前／下一节目和台标；按需加载小图，不铺满大型节目墙。
+- **手机扫码导入**：同一局域网扫描电视二维码，上传 M3U／M3U8／TXT 文件或粘贴订阅链接，无需账号或手机端安装。
+- **按频道修正画面比例**：自动、强制 16:9、强制 4:3、等比裁切、拉伸填满；保存每个频道的选择。
+- **隐藏失效频道与本地备份**：全部源确认失败才隐藏，支持单频道重检；导出订阅、收藏和设置，便于迁移设备。
 
-使用、数据迁移、签名与验收边界见 [1.3.0 说明](docs/lightweight-1.3.0.md)。
+## 自动匹配：先适配网络，再优选画质
 
-## 1.2.0 · 持久检测与播放状态
+![网络适配实机界面](docs/images/network-match-1.4.0.png)
 
-首次匹配网络后，后台逐一静音试播当前快照的所有频道源，缓存首个成功地址与失败结果；同省同运营商不重复全量检测，中断可续检。所有源均确认失败的频道自动隐藏，设置中手动重新检测后成功恢复。全屏确定选台时，右上角显示实时下载流码率、声道、音视频格式和解码器。细节与测试范围见 [1.2.0 说明](docs/health-1.2.0.md)。
+首次联网识别**省份 + 运营商**，从 [CHINA-IPTV](https://github.com/xisohi/CHINA-IPTV) 的 `Unicast/<province>/<carrier>.txt` 获取对应列表。之后按以下规则工作：
 
-## 1.1.0 · 电视交互与网络适配
-
-- 主页使用分类、频道和预览三栏；分类随焦点切换，频道按一次确定直接全屏。电视端再次打开可继续上次频道。
-- 全屏按确定打开左侧双列选台面板；分类浏览不停止当前播放器，确定频道后才换台。返回先收起面板，再返回主页。全屏不显示右下角返回按钮。
-- 首次、启动和网络变化时识别盒子公网出口；省份、运营商相同保留原源，仅在每日更新时刷新列表；地区或运营商变化后下载对应列表并原子替换缓存。
-- 识别或下载失败不清空可用列表；可在设置中手动选择省份、运营商，或切回自动模式。
-- 公网识别通过 HTTPS 访问 IPIP，失败时尝试 ipwho.is；不保存公网 IP，识别服务方会看到请求出口。代理／VPN 可能影响匹配，手动模式停止后续自动识别。
-
-详见 [TV 交互与适配说明](docs/tv-1.1.0.md)。
-
-## 1.0.1 更新
-
-横屏请求仅限应用前台，退到后台时立即释放；正常退出移除应用任务。已在小米 14 验证切换至 Clash、Gmail 和桌面后保持竖屏。应用不改写系统旋转设置。方向问题的调试原因和回归步骤见 [方向回归记录](docs/orientation-regression.md)。
-
-## 功能
-
-- 从 [CHINA-IPTV](https://github.com/xisohi/CHINA-IPTV) 对应省份/运营商的 `Unicast/<province>/<carrier>.txt` 每日尝试更新；失败保留缓存，启动时补更。
-- 同名频道合并多条线路，按原始顺序实际试播；报错、14 秒无首帧或缓冲超时自动切换到下一条，也可手动选择。
-- 频道分组、搜索、收藏、预览与全屏播放。
-- 导入 M3U / M3U8 / TXT 文件和 HTTP/HTTPS 订阅网址；支持 UTF-8 和 GB18030 编码。网址随每日任务更新，本地文件保留导入内容。
-- Android TV 启动入口、方向键焦点和换台操作。
-
-每日更新由 Android JobScheduler 调度，断网、休眠或系统后台限制会延后执行。运营商源能否播放取决于当前网络，部分源限福建移动宽带。内置列表快照在 2026-11-21 解析为 119 个频道、244 条线路，后续数量可能变化。
-
-## 开发与构建
-
-环境：JDK 17、Android SDK Platform 34、Build Tools 34.0.0。Gradle Wrapper 已包含在仓库，版本 8.9；Android Gradle Plugin 8.5.2。
-
-1. 克隆本仓库，在 Android Studio 中打开根目录，或配置 `ANDROID_HOME` 指向本机 SDK。
-2. 也可在本地新建 `local.properties`，设置 `sdk.dir`；该文件不提交。
-3. 执行构建及检查：
-
-```bash
-# macOS / Linux
-./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest
-bash scripts/test-playlist.sh
-
-# Windows PowerShell
-.\gradlew.bat :app:assembleDebug :app:lintDebug :app:testDebugUnitTest
-.\scripts\test-playlist.ps1
-```
-
-APK 输出：`app/build/outputs/apk/debug/app-debug.apk`。安装：`adb install -r app/build/outputs/apk/debug/app-debug.apk`。
-
-最低 Android 6.0（API 23），目标 API 34，包名 `cn.mint.tv`。
-
-## GitHub 自动构建
-
-推送、Pull Request 或在 Actions 页面手动运行 **Android build**，会运行解析测试、Android Lint、单元测试，并构建 Debug 与压缩后的 unsigned Release。成功后可在 **Artifacts** 下载 `mint-tv-debug` 或 `mint-tv-release-unsigned`。未配置独立签名的 release 不能直接安装。
-
-正式签名通过四个本地环境变量提供：`MINT_KEYSTORE`、`MINT_STORE_PASSWORD`、`MINT_KEY_ALIAS`、`MINT_KEY_PASSWORD`。全部未设置时输出 unsigned Release；不自动退回 debug 签名。不将密钥、口令提交到仓库。详见版本说明。
-
-`assembleCompat` 使用本机原 debug key，供已有开发版覆盖测试；它保留 R8 压缩，但并非正式签名发布包。换机器或 CI 的 debug key 通常不同，不能覆盖已有安装。
-
-## 代码结构
-
-| 路径 | 作用 |
+| 情况 | 应用行为 |
 | --- | --- |
-| `app/src/main/java/cn/mint/tv/MainActivity.java` | 原生界面、遥控器交互、播放器和线路切换 |
-| `app/src/main/java/cn/mint/tv/Playlist.java` | M3U/TXT 解析、频道合并和去重 |
-| `app/src/main/java/cn/mint/tv/Store.java` | 订阅、缓存、导入与更新任务配置 |
-| `app/src/main/java/cn/mint/tv/UpdateJob.java` | Android 每日后台更新任务 |
-| `app/src/main/res/drawable/` | 原创薄荷电视图标和 TV banner |
-| `tests/PlaylistTest.java`、`tests/NetworkProfileTest.java` | 独立于 Android 的解析和网络匹配规则测试 |
+| 省份、运营商相同 | 保留原有源及检测结果，日常仅检查更新 |
+| 省份或运营商改变 | 成功取得新列表后切换，并重新检测 |
+| 同频道有多个可用源 | 按试播分辨率优选，同分辨率保留原始顺序 |
+| 识别、下载或节目单失败 | 保留已有数据，不清空可用内容 |
+| 所有源确认失败 | 隐藏频道，用户重检成功后恢复 |
 
-## 遥控器与使用
+升级自旧版时，缺少分辨率的已知可用源会补测一次；不会因此清空收藏或强制恢复隐藏频道。未知、解码资源不足和中断不等同于源失效。画质优选依据实际试播结果，不能保证运营商网络中的所有源都可访问。
 
-主页方向键移动焦点，确定直接全屏播放。全屏确定键打开左侧分类／频道面板，上下浏览、左右切换两列；确定换台，返回收起面板，再按返回回主页。未打开面板时上下快捷换台，左键打开分类，右键或菜单键选线路。菜单键可打开线路列表；手机可能截获该键，此时点击“线路”。右上角可导入、管理订阅或立即更新。详见 [使用说明](README.txt)。
+## 全屏选台，保持直播不中断
 
-## 验证与当前范围
+![透明选台面板与节目资料](docs/images/channel-drawer-1.4.0.png)
 
-2026-11-21 在小米 14 上验证了 CCTV1、CCTV2、安徽卫视播放，以及失效首源到第二条线路的自动切换、手动选线、全屏进出、网址和本地 TXT 导入、移除导入、更新任务及缓存。解析器测试和本地 release 构建、Lint 已通过。
+按一次确定打开左侧面板。左右切换分类和频道，上下浏览，确定后换台；返回先收起面板，再返回主页。面板保留透明背景及清晰焦点，下方展示**正在观看的频道**的节目资料；右上角显示实时下载流码率、声道、音视频格式与解码器。
 
-1.1.0 已在 Android 14 / 1080p Google TV 盒子验证全屏选台、浏览分类时持续播放、确定换台与返回主页。现场识别福建移动，同网重新进入时保留原源。未逐条检测全部线路；跨省或换运营商的分支以单元测试覆盖，未实际迁移网络。包含 HLS、DASH 及常见 HTTP/UDP 媒体支持；RTP/RTSP 目前跳过，需要转换为 HTTP 代理源。1.3.0 增加可选当前/下一节目单；不含回看和录制。
+| 遥控器操作 | 功能 |
+| --- | --- |
+| 主页确定 | 进入频道全屏播放 |
+| 全屏确定 | 打开分类／频道选台面板 |
+| 全屏上下（面板关闭时） | 快捷换台 |
+| 全屏左键 | 打开频道分类 |
+| 右键或菜单键 | 选择线路、重检当前频道、调整画面比例 |
+| 数字键 | 输入频道号；等待约 1.4 秒或按确定选台 |
+| 返回 | 取消输入、关闭面板、返回主页 |
 
-频道数据来自 [xisohi/CHINA-IPTV](https://github.com/xisohi/CHINA-IPTV)，界面风格参考 [LunaTV](https://github.com/MoonTechLab/LunaTV/releases)，播放器使用 [AndroidX Media3](https://github.com/androidx/media)。应用为原生新实现，未复制 LunaTV 源码或图片。
+宁夏卫视、河北卫视默认使用本次反馈对应的 16:9 修正，仍可在“画面比例”中切回自动；不会把全部历史 4:3 节目统一拉宽。
 
+## 手机扫码导入
+
+![局域网扫码导入](docs/images/phone-import-1.4.0.png)
+
+**导入 → 订阅网址 → 手机扫码**，手机和盒子连接同一路由器即可：
+
+1. 扫描电视上的二维码，使用手机浏览器打开临时页面。
+2. 上传不超过 8 MB 的 M3U／M3U8／TXT 文件，或发送 HTTP(S) 订阅链接。
+3. 导入成功后直接在电视上选台；订阅网址参与每日更新，本地文件保留上传内容。
+
+会话最长 10 分钟；关闭电视窗口或应用退到后台后停止接收。每次打开生成新地址，截图中的演示会话不再有效。访客 Wi-Fi 的设备隔离、代理或不同子网可能阻止局域网互访。
+
+## 节目单、台标与数据
+
+默认节目单使用 [112114 XMLTV 服务](https://epg.112114.xyz/)，可在设置中换为自己的 XMLTV／XMLTV.gz 地址或关闭。台标优先采用直播列表的 `tvg-logo` 与 XMLTV `icon`，缺失时尝试 [服务方公开台标库](https://github.com/sparkssssssssss/epg)。数据可能缺失、延迟或与直播进度不同，盒子时间应保持正确。
+
+仅缓存每频道当前／下一节目，约每 6 小时尝试更新。台标只按需加载当前频道，小图内存缓存约 512 KB、磁盘缓存最多约 4 MB；节目单流式解析，不使用大型节目表数据库。
+
+设置中的本地备份包含源、订阅地址、收藏、最近观看和频道设置。Android 10+ 电视盒子支持保存到 **下载 / MintTV**，避免部分 Google TV 只有占位文件选择器的问题；跨设备文件可使用完整的系统文件选择器。备份可能包含订阅凭据，请自行保管。
+
+## 安装与开发
+
+[下载薄荷电视 1.4.0 APK](releases/mint-tv-1.4.0.apk)（本次已安装文件；未重新签名）
+
+
+包名 `cn.mint.tv`，最低 Android 6.0（API 23），兼容手机横屏；主要交互面向 Android TV／Google TV 遥控器。应用只在自身前台请求横屏，不修改系统旋转锁定。
+
+- 本次安装文件保持原签名，保留应用数据。
+- [GitHub Actions](https://github.com/microzjs/mint-tv/actions) 提供 Debug 测试包与 unsigned Release 构建产物；CI 临时 Debug 签名通常无法覆盖现有安装，不要通过直接卸载来规避签名问题。
+- 独立正式签名、R8、构建步骤见 [开发与签名说明](docs/development.md)。私钥及口令不入库。
+
+## 范围与验证
+
+保持原生 Android 界面和单路前台播放；后台检测顺序执行，在切台及内存压力时让出资源。不加入账号系统、广告、多画面、录制和大型节目墙。
+
+源可用性取决于运营商网络；公网出口识别可能受代理／VPN 影响，可手动适配。RTP／RTSP 目前需自行转换为 HTTP 代理源；不含回看、DRM 破解或付费订阅内容。
+
+本次版本的构建、自动测试、盒子实测和未覆盖项见 [1.4.0 验证记录](docs/validation-1.4.0.md)。历史说明：[1.3.0](docs/lightweight-1.3.0.md) · [1.2.0](docs/health-1.2.0.md) · [1.1.0](docs/tv-1.1.0.md)。
+
+## 数据与组件来源
+
+- 频道数据：[xisohi / CHINA-IPTV](https://github.com/xisohi/CHINA-IPTV)。
+- 节目与台标：[112114](https://epg.112114.xyz/) 及其公开数据仓库，或用户自行提供。
+- 播放器：[AndroidX Media3](https://github.com/androidx/media)；二维码编码：[ZXing](https://github.com/zxing/zxing)。
+- 原创原生界面和图标，最初风格参考 [LunaTV](https://github.com/MoonTechLab/LunaTV/releases)，未复制其代码或图片。
+
+应用不提供账号订阅、收费频道或可用性承诺；请仅使用有权访问的数据源。

@@ -29,7 +29,8 @@ public class MainActivity extends Activity {
     Set<String> favorites=new HashSet<>();
     String category="全部频道", drawerCategory="全部频道", query="";
     Playlist.Channel current;
-    int sourceIndex=0, generation=0;
+    int sourceIndex=0, generation=0,sourceAttempt=0;int[] sourceOrder=new int[0];
+    ChannelLogo logos;TextView drawerTitle,drawerProgram;ImageView drawerLogo;LanImportDialog lanImport;
     boolean fullscreen=false, drawerOpen=false, updating=false, stopped=true, rendered=false;
     boolean pendingDetection=false, pendingForce=false, loadingLists=false;
     boolean consumeSelectUp=false; boolean ready=false;
@@ -50,7 +51,7 @@ public class MainActivity extends Activity {
     TextView title, subtitle, state, networkLabel, clock, hud, expand;
     ListView categoryList, channelList, drawerGroups, drawerChannels;
     RowsAdapter categoryAdapter, channelAdapter, drawerGroupAdapter, drawerChannelAdapter;
-    PlayerView video;
+    TvPlayerView video;
     ExoPlayer player;
     Runnable timeout;
     ConnectivityManager connectivity;
@@ -59,7 +60,7 @@ public class MainActivity extends Activity {
     final Runnable hideHud=()->{if(hud!=null)hud.setVisibility(View.GONE);};
     final Runnable networkChanged=()->refresh(false,true);
     final Runnable clockTick=new Runnable(){public void run(){
-        if(ready){updateEpg();io.execute(()->Epg.refresh(MainActivity.this,false));}
+        if(ready&&!stopped){updateEpg();Epg.schedule(MainActivity.this,false,()->{if(!isDestroyed())updateEpg();});}
         if(clock!=null)clock.setText(new java.text.SimpleDateFormat("HH:mm",Locale.CHINA).format(new Date()));
         if(!stopped&&System.currentTimeMillis()-Store.prefs(MainActivity.this).getLong("geoTime",0)>15*60000L)
             refresh(false,false);
@@ -74,9 +75,9 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(5894);
         TextView loading=text("正在安全加载本地数据…",18,TEXT);loading.setGravity(Gravity.CENTER);loading.setBackgroundColor(BG);setContentView(loading);
         io.execute(()->{
-            try{LocalState.open(this);java.util.List<Playlist.Channel> loaded=Store.channels(this);
+            try{LocalState.open(this);Epg.defaults(this);if(!Store.prefs(this).getBoolean("aspectCorrections14",false))Store.prefs(this).edit().putString("channelAspects",ChannelAspect.defaults(Store.prefs(this).getString("channelAspects","{}")).toString()).putBoolean("aspectCorrections14",true).apply();java.util.List<Playlist.Channel> loaded=Store.channels(this);
                 handler.post(()->{if(isDestroyed())return;channels.addAll(loaded);favorites=new HashSet<>(Store.prefs(this).getStringSet("favorites",new HashSet<>()));
-                    ready=true;assignNumbers();Store.schedule(this);
+                    ready=true;logos=new ChannelLogo(this);assignNumbers();Store.schedule(this);
                     android.net.wifi.WifiManager wifi=(android.net.wifi.WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);
                     if(wifi!=null){multicast=wifi.createMulticastLock("mint-stream");multicast.setReferenceCounted(false);}
                     build();handler.post(clockTick);handler.post(telemetryTick);registerNetwork();refresh(false,true);
@@ -127,7 +128,7 @@ public class MainActivity extends Activity {
         LinearLayout header=row();header.setGravity(Gravity.CENTER_VERTICAL);
         ImageView logo=new ImageView(this);logo.setImageResource(R.drawable.ic_launcher);add(header,logo,42,42);
         TextView brand=text("薄荷电视",23,TEXT);brand.setTypeface(null,Typeface.BOLD);add(header,brand,130,46);
-        networkLabel=text("",12,GREEN);header.addView(networkLabel,new LinearLayout.LayoutParams(0,dp(46),1));
+        networkLabel=text("",12,GREEN);networkLabel.setFocusable(true);networkLabel.setClickable(true);networkLabel.setOnClickListener(v->networkStatus());header.addView(networkLabel,new LinearLayout.LayoutParams(0,dp(46),1));
         clock=text("",14,MUTED);add(header,clock,52,42);
         add(header,button("搜索",this::searchDialog),66,40);
         add(header,button("导入",this::importDialog),66,40);
@@ -143,7 +144,7 @@ public class MainActivity extends Activity {
         LinearLayout preview=col();preview.setPadding(dp(10),0,0,0);body.addView(preview,new LinearLayout.LayoutParams(0,-1,1));
         videoBox=new FrameLayout(this);videoBox.setBackground(shape(PANEL,0xff263940));
         preview.addView(videoBox,new LinearLayout.LayoutParams(-1,0,1));
-        video=new PlayerView(this);video.setUseController(false);video.setFocusable(false);videoBox.addView(video,new FrameLayout.LayoutParams(-1,-1));
+        video=new TvPlayerView(this);applyAspect();video.setUseController(false);video.setFocusable(false);videoBox.addView(video,new FrameLayout.LayoutParams(-1,-1));
         TextView placeholder=text("▶\n选择频道，按确定开始观看",17,MUTED);placeholder.setGravity(Gravity.CENTER);placeholder.setTag("placeholder");
         videoBox.addView(placeholder,new FrameLayout.LayoutParams(-1,-1));
         expand=button("全屏",()->{if(current==null){toast("请先选择频道");return;}setFullscreen(true);});
@@ -154,7 +155,7 @@ public class MainActivity extends Activity {
         epgLine=text("",12,MUTED);epgLine.setMaxLines(2);add(preview,epgLine,-1,36);
         state=text("播放中按确定，左侧选台",12,GREEN);state.setMaxLines(2);add(preview,state,-1,30);
         LinearLayout controls=row();add(controls,button("线路",this::sources),76,38);
-        add(controls,button("收藏",this::toggleFavorite),76,38);add(controls,button("重试",()->{if(current!=null)play(current);}),76,38);preview.addView(controls);
+        add(controls,button("收藏",this::toggleFavorite),70,38);add(controls,button("画面",this::aspectDialog),70,38);add(controls,button("重试",()->{if(current!=null)play(current);}),76,38);preview.addView(controls);
         add(home,text("左右切换分类 / 频道   ·   确定直接观看   ·   播放中确定打开选台   ·   返回关闭选台 / 返回主页",11,MUTED),-1,24);
         hud=text("",15,TEXT);hud.setPadding(dp(18),dp(12),dp(18),dp(12));hud.setBackground(shape(0xe6152229,0xff285746));
         FrameLayout.LayoutParams hp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.LEFT);hp.setMargins(dp(28),dp(24),dp(28),0);
@@ -213,6 +214,7 @@ public class MainActivity extends Activity {
         adapter.rows=labels;adapter.notifyDataSetChanged();
     }
     class RowsAdapter extends BaseAdapter {
+        final boolean translucent;RowsAdapter(){this(false);}RowsAdapter(boolean translucent){this.translucent=translucent;}
         List<String> rows=new ArrayList<>();
         public int getCount(){return rows.size();}
         public Object getItem(int pos){return rows.get(pos);}
@@ -220,7 +222,7 @@ public class MainActivity extends Activity {
         public View getView(int pos,View convert,ViewGroup parent){
             TextView t=convert instanceof TextView?(TextView)convert:text("",15,TEXT);
             t.setText(rows.get(pos));t.setPadding(dp(12),dp(7),dp(10),dp(7));t.setMinHeight(dp(46));
-            t.setMaxLines(2);t.setEllipsize(TextUtils.TruncateAt.END);t.setBackground(background(PANEL));
+            t.setMaxLines(2);t.setEllipsize(TextUtils.TruncateAt.END);t.setBackground(translucent?drawerRowBackground():background(PANEL));if(translucent)t.setShadowLayer(dp(2),0,dp(1),0xff000000);
             t.setLayoutParams(new AbsListView.LayoutParams(-1,dp(rows.get(pos).contains("\n")?58:46)));
             return t;
         }
@@ -234,7 +236,7 @@ public class MainActivity extends Activity {
         if(drawerOpen){if(focusGroups)drawerGroups.requestFocus();return;}
         drawerOpen=true;telemetryTime=android.os.SystemClock.elapsedRealtime();telemetryBytes=mediaBytes.get();showDiagnostics();hud.setVisibility(View.GONE);drawerCategory=category;
         if(current!=null&&!query.isEmpty())drawerCategory="全部频道";
-        drawer=new FrameLayout(this);drawer.setBackground(shape(0xfa101c22,0xff345047));
+        drawer=new FrameLayout(this);drawer.setBackground(shape(0x88101c22,0x705c8274));
         int width=Math.min(460,Math.max(300,(int)(getResources().getConfiguration().screenWidthDp*0.53f)));
         FrameLayout.LayoutParams panel=new FrameLayout.LayoutParams(dp(width),-1,Gravity.LEFT);
         panel.setMargins(dp(18),dp(22),0,dp(22));root.addView(drawer,panel);
@@ -242,10 +244,13 @@ public class MainActivity extends Activity {
         add(shell,text("直播选台",21,GREEN),-1,32);
         add(shell,text("左右选分类 / 频道 · 确定换台 · 返回收起",11,MUTED),-1,24);
         LinearLayout lists=row();shell.addView(lists,new LinearLayout.LayoutParams(-1,0,1));
-        drawerGroups=list();drawerGroupAdapter=new RowsAdapter();drawerGroupAdapter.rows=new ArrayList<>(categories);drawerGroups.setAdapter(drawerGroupAdapter);
+        drawerGroups=list();drawerGroupAdapter=new RowsAdapter(true);drawerGroupAdapter.rows=new ArrayList<>(categories);drawerGroups.setAdapter(drawerGroupAdapter);
         lists.addView(drawerGroups,new LinearLayout.LayoutParams(dp(118),-1));
-        drawerChannels=list();drawerChannelAdapter=new RowsAdapter();drawerChannels.setAdapter(drawerChannelAdapter);
+        drawerChannels=list();drawerChannelAdapter=new RowsAdapter(true);drawerChannels.setAdapter(drawerChannelAdapter);
         LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-1,1);cp.leftMargin=dp(8);lists.addView(drawerChannels,cp);
+        LinearLayout info=row();info.setGravity(Gravity.CENTER_VERTICAL);info.setPadding(dp(10),dp(7),dp(10),dp(7));info.setBackground(shape(0xd0101c22,0x605c8274));
+        drawerLogo=new ImageView(this);drawerLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);drawerLogo.setBackground(shape(0xe8ffffff,0x00ffffff));add(info,drawerLogo,72,48);
+        LinearLayout words=col();drawerTitle=text("",14,GREEN);drawerTitle.setTypeface(null,Typeface.BOLD);drawerTitle.setMaxLines(1);words.addView(drawerTitle,new LinearLayout.LayoutParams(-1,dp(24)));drawerProgram=text("",12,TEXT);drawerProgram.setMaxLines(2);drawerProgram.setEllipsize(TextUtils.TruncateAt.END);words.addView(drawerProgram,new LinearLayout.LayoutParams(-1,dp(36)));info.addView(words,new LinearLayout.LayoutParams(0,-2,1));add(shell,info,-1,82);updateDrawerInfo();
         drawerGroups.setSelection(Math.max(0,categories.indexOf(drawerCategory)));renderChannels(true);
         for(int i=0;i<drawerVisible.size();i++)if(Playlist.key(drawerVisible.get(i).name).equals(Playlist.key(current.name)))drawerChannels.setSelection(i);
         drawerGroups.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
@@ -266,7 +271,7 @@ public class MainActivity extends Activity {
         if(focusGroups)drawerGroups.requestFocus();else drawerChannels.requestFocus();
         android.util.Log.i("MintTV","DRAWER_OPEN channel="+current.name+" playing="+(player!=null&&player.isPlaying()));
     }
-    void closeDrawer(){if(!drawerOpen)return;drawerOpen=false;if(diagnostics!=null)diagnostics.setVisibility(View.GONE);root.removeView(drawer);drawer=null;videoBox.requestFocus();
+    void closeDrawer(){if(!drawerOpen)return;drawerOpen=false;if(diagnostics!=null)diagnostics.setVisibility(View.GONE);root.removeView(drawer);drawer=null;drawerLogo=null;drawerProgram=null;drawerTitle=null;videoBox.requestFocus();
         android.util.Log.i("MintTV","DRAWER_CLOSE channel="+(current==null?"":current.name)+" playing="+(player!=null&&player.isPlaying()));}
     void setFullscreen(boolean yes){
         if(fullscreen==yes)return;closeDrawer();fullscreen=yes;
@@ -300,7 +305,7 @@ public class MainActivity extends Activity {
         diagnostics.setText(String.format(Locale.CHINA,"实时流码率（下载） %.2f Mbps\n",rate)
             +"含音频/封装；分片缓存会造成波动\n视频："+fmt(v)+(v==null?"":"\n"+v.width+" × "+v.height+" / 标称 "+(v.bitrate>0?String.format(Locale.CHINA,"%.2f Mbps",v.bitrate/1000000.0):"未知"))
             +"\n音频："+fmt(a)+"\n"+channels+(a!=null&&a.sampleRate>0?" / "+a.sampleRate+" Hz":"")
-            +"\n解码器："+videoDecoder+"\n"+audioDecoder+(current!=null&&!Store.prefs(this).getString("epgUrl","").isEmpty()?"\n"+Epg.summary(this,current.name):""));
+            +"\n显示："+(current!=null&&ChannelAspect.mode(Store.prefs(this).getString("channelAspects","{}"),current.name)==1?"强制 16:9":current!=null&&ChannelAspect.mode(Store.prefs(this).getString("channelAspects","{}"),current.name)==2?"强制 4:3":"自动 / 缩放")+"\n解码器："+videoDecoder+"\n"+audioDecoder+(current!=null&&!Store.prefs(this).getString("epgUrl","").isEmpty()?"\n"+Epg.summary(this,current.name):""));
     }
     void initPlayer(){
         if(player!=null)return;
@@ -328,7 +333,7 @@ public class MainActivity extends Activity {
     }
     void play(Playlist.Channel c){
         ProbeBudget.pause(8000);digits="";handler.removeCallbacks(tuneNumber);
-        current=c;sourceIndex=Health.first(this,c);title.setText(c.name);subtitle.setText(c.group+" · "+c.urls.size()+" 条可选线路");
+        current=c;applyAspect();sourceOrder=Health.order(this,c);sourceAttempt=0;sourceIndex=sourceOrder[0];title.setText(c.name);subtitle.setText(c.group+" · "+c.urls.size()+" 条可选线路");
         View placeholder=videoBox.findViewWithTag("placeholder");if(placeholder!=null)placeholder.setVisibility(View.GONE);
         Store.prefs(this).edit().putString("last",c.name).putString("recent",TvHistory.recent(Store.prefs(this).getString("recent","[]"),Playlist.key(c.name)).toString()).apply();updateEpg();if(!stopped)trySource();renderChannels(false);showHud();
     }
@@ -343,14 +348,14 @@ public class MainActivity extends Activity {
     void cancelTimeout(){if(timeout!=null)handler.removeCallbacks(timeout);timeout=null;}
     void advance(String reason){
         cancelTimeout();if(stopped||current==null)return;
-        if(sourceIndex+1<current.urls.size()){sourceIndex++;trySource();}
+        if(sourceAttempt+1<sourceOrder.length){sourceAttempt++;sourceIndex=sourceOrder[sourceAttempt];trySource();}
         else{generation++;if(player!=null)player.stop();state.setText("全部线路暂不可用 · 检查网络或选择其他源");toast(reason+"，已尝试全部 "+current.urls.size()+" 条线路");}
     }
     void sources(){
         if(current==null){toast("请先选择频道");return;}
-        String[] labels=new String[current.urls.size()];for(int i=0;i<labels.length;i++)labels[i]="线路 "+(i+1)+(i==sourceIndex?" · 当前":"")+"\n"+Uri.parse(current.urls.get(i)).getHost();
-        new AlertDialog.Builder(this).setTitle(current.name+" · 线路").setSingleChoiceItems(labels,sourceIndex,(d,i)->{sourceIndex=i;trySource();d.dismiss();showHud();})
-            .setNeutralButton("重检当前频道",(d,w)->{Playlist.Channel selected=current;io.execute(()->Health.recheck(this,selected));toast("已加入单频道检测队列");}).setNegativeButton("返回",null).show();
+        String[] labels=new String[current.urls.size()];for(int i=0;i<labels.length;i++)labels[i]="线路 "+(i+1)+(i==sourceIndex?" · 当前":"")+" · "+Health.qualityLabel(this,current,i)+"\n"+Uri.parse(current.urls.get(i)).getHost();
+        new AlertDialog.Builder(this).setTitle(current.name+" · 线路").setSingleChoiceItems(labels,sourceIndex,(d,i)->{sourceOrder=SourceRanking.withFirst(Health.order(this,current),i);sourceAttempt=0;sourceIndex=i;trySource();d.dismiss();showHud();})
+            .setNeutralButton("重检当前频道",(d,w)->{Playlist.Channel selected=current;io.execute(()->Health.recheck(this,selected));toast("已加入单频道检测队列");}).setPositiveButton("画面比例",(d,w)->aspectDialog()).setNegativeButton("返回",null).show();
     }
     void toggleFavorite(){
         if(current==null){toast("请先选择频道");return;}String key=Playlist.key(current.name);
@@ -363,7 +368,11 @@ public class MainActivity extends Activity {
         play(pool.get((at+step+pool.size())%pool.size()));
     }
     void assignNumbers(){numbers=TvHistory.numbers(Store.prefs(this).getString("channelNumbers","{}"),channels);Store.prefs(this).edit().putString("channelNumbers",numbers.toString()).apply();}
-    void updateEpg(){if(epgLine!=null)epgLine.setText(current==null||Store.prefs(this).getString("epgUrl","").isEmpty()?"":Epg.summary(this,current.name));}
+    android.graphics.drawable.Drawable drawerRowBackground(){StateListDrawable d=new StateListDrawable();d.addState(new int[]{android.R.attr.state_pressed},shape(0xd0285746,GREEN));d.addState(new int[]{android.R.attr.state_focused},shape(0xc0285746,GREEN));d.addState(new int[]{android.R.attr.state_selected},shape(0xb0285746,GREEN));d.addState(new int[]{},shape(0x18152229,0x50608072));return d;}
+    void updateDrawerInfo(){if(!drawerOpen||current==null||drawerProgram==null)return;drawerTitle.setText("正在观看 · "+current.name);drawerProgram.setText(Store.prefs(this).getString("epgUrl","").isEmpty()?"节目单已关闭":Epg.summary(this,current.name));String url=current.logo;if(url.isEmpty())url=Epg.logo(this,current.name);if(url.isEmpty()&&Store.prefs(this).getBoolean("defaultLogos",true))url="https://raw.githubusercontent.com/sparkssssssssss/epg/main/logo/"+Uri.encode(ChannelNames.key(current.name))+".png";logos.show(drawerLogo,url);}
+    void applyAspect(){if(video!=null)video.presentation(current==null?0:ChannelAspect.mode(Store.prefs(this).getString("channelAspects","{}"),current.name));}
+    void aspectDialog(){if(current==null){toast("请先选择频道");return;}new AlertDialog.Builder(this).setTitle(current.name+" · 画面比例").setSingleChoiceItems(new String[]{"自动 · 按信号比例","强制 16:9 · 修正画面被压窄","强制 4:3 · 保持经典画幅","等比放大填满 · 裁切边缘","拉伸铺满 · 随屏幕比例"},ChannelAspect.mode(Store.prefs(this).getString("channelAspects","{}"),current.name),(d,i)->{try{JSONObject modes=new JSONObject(Store.prefs(this).getString("channelAspects","{}"));modes.put(Playlist.key(current.name),i);Store.prefs(this).edit().putString("channelAspects",modes.toString()).apply();applyAspect();}catch(Exception ignored){}d.dismiss();}).setNegativeButton("返回",null).show();}
+    void updateEpg(){updateDrawerInfo();if(epgLine!=null)epgLine.setText(current==null||Store.prefs(this).getString("epgUrl","").isEmpty()?"":Epg.summary(this,current.name));}
     void finishNumber(){if(digits.isEmpty())return;if(!hasWindowFocus()){digits="";hideHud.run();return;}int n=Integer.parseInt(digits);digits="";for(Playlist.Channel c:channels)if(numbers.optInt(Playlist.key(c.name))==n){if(Health.hidden(this,c)){toast("该频道已隐藏，请在设置中重检");hideHud.run();return;}closeDrawer();play(c);setFullscreen(true);return;}hideHud.run();toast("没有该编号的频道");}
     @Override public boolean dispatchKeyEvent(KeyEvent e){
         int digit=e.getKeyCode()-KeyEvent.KEYCODE_0;if(e.getKeyCode()>=KeyEvent.KEYCODE_NUMPAD_0&&e.getKeyCode()<=KeyEvent.KEYCODE_NUMPAD_9)digit=e.getKeyCode()-KeyEvent.KEYCODE_NUMPAD_0;
@@ -398,19 +407,28 @@ public class MainActivity extends Activity {
             .setNeutralButton("清空搜索",(d,w)->{query="";reloadViews();channelList.requestFocus();}).setNegativeButton("返回",null).show();
     }
  void importDialog(){new AlertDialog.Builder(this).setTitle("导入直播源").setItems(new String[]{"订阅网址 · M3U / TXT，每日更新","本地文件 · M3U / M3U8 / TXT","管理已导入的源"},(d,i)->{if(i==0)urlDialog();if(i==1){Intent in=new Intent(Intent.ACTION_OPEN_DOCUMENT);in.setType("*/*");in.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(in,21);}if(i==2)manage();}).setNegativeButton("返回",null).show();}
- void urlDialog(){EditText input=new EditText(this);input.setTextColor(TEXT);input.setSingleLine(true);input.setHint("https://example.com/live.m3u");input.setInputType(17);LinearLayout box=col();box.setPadding(dp(24),dp(12),dp(24),0);box.addView(input);new AlertDialog.Builder(this).setTitle("添加订阅网址").setView(box).setPositiveButton("导入",(d,w)->{String url=input.getText().toString().trim();toast("正在导入…");io.execute(()->{try{String text=Store.fetch(url);Store.add(this,Uri.parse(url).getHost(),url,text);handler.post(()->{reload();toast("导入成功");});}catch(Exception e){handler.post(()->toast("导入失败："+e.getMessage()));}});}).setNegativeButton("取消",null).show();}
- @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if((request==22||request==23)&&result==RESULT_OK&&data!=null&&data.getData()!=null){new TvTools(this).result(request,data.getData());return;}if(request==21&&result==RESULT_OK&&data!=null){Uri uri=data.getData();io.execute(()->{try{String text=Store.read(getContentResolver().openInputStream(uri));Store.add(this,"本地列表 "+new java.text.SimpleDateFormat("MM-dd HH:mm",Locale.CHINA).format(new Date()),"",text);handler.post(()->{reload();toast("文件导入成功");});}catch(Exception e){handler.post(()->toast("导入失败："+e.getMessage()));}});}}
+ void urlDialog(){new AlertDialog.Builder(this).setTitle("添加订阅 / 导入直播源").setItems(new String[]{"手机扫码 · 局域网上传文件或发送网址","遥控器输入订阅网址"},(d,i)->{if(i==0){if(lanImport!=null)lanImport.close();lanImport=new LanImportDialog(this);lanImport.show();}else manualUrlDialog();}).setNegativeButton("返回",null).show();}
+ void manualUrlDialog(){EditText input=new EditText(this);input.setTextColor(TEXT);input.setSingleLine(true);input.setHint("https://example.com/live.m3u");input.setInputType(17);LinearLayout box=col();box.setPadding(dp(24),dp(12),dp(24),0);box.addView(input);new AlertDialog.Builder(this).setTitle("添加订阅网址").setView(box).setPositiveButton("导入",(d,w)->{String url=input.getText().toString().trim();toast("正在导入…");io.execute(()->{try{String text=Store.fetch(url);Store.add(this,Uri.parse(url).getHost(),url,text);Health.queueImported(this,Playlist.parse(text));handler.post(()->{reload();toast("导入成功");});}catch(Exception e){handler.post(()->toast("导入失败："+e.getMessage()));}});}).setNegativeButton("取消",null).show();}
+ @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if((request==22||request==23)&&result==RESULT_OK&&data!=null&&data.getData()!=null){new TvTools(this).result(request,data.getData());return;}if(request==21&&result==RESULT_OK&&data!=null){Uri uri=data.getData();io.execute(()->{try{String text=Store.read(getContentResolver().openInputStream(uri));Store.add(this,"本地列表 "+new java.text.SimpleDateFormat("MM-dd HH:mm",Locale.CHINA).format(new Date()),"",text);Health.queueImported(this,Playlist.parse(text));handler.post(()->{reload();toast("文件导入成功");});}catch(Exception e){handler.post(()->toast("导入失败："+e.getMessage()));}});}}
  void manage(){JSONArray a=Store.imports(this);if(a.length()==0){toast("还没有导入的列表");return;}String[] names=new String[a.length()];for(int i=0;i<names.length;i++)names[i]=a.optJSONObject(i).optString("title")+(a.optJSONObject(i).optString("url").isEmpty()?" · 本地":" · 订阅");new AlertDialog.Builder(this).setTitle("选择要移除的列表").setItems(names,(d,i)->new AlertDialog.Builder(this).setTitle("移除 "+names[i]+"？").setPositiveButton("移除",(x,w)->{Store.remove(this,i);reload();}).setNegativeButton("取消",null).show()).setNegativeButton("返回",null).show();}
 
     void settings(){
         long t=Store.prefs(this).getLong("baseTime",0);
         String date=t==0?"安装包附带的备用列表":new java.text.SimpleDateFormat("MM-dd HH:mm",Locale.CHINA).format(new Date(t));
-        new AlertDialog.Builder(this).setTitle("薄荷电视 1.3.0 · "+Store.activeProfile(this).label())
+        new AlertDialog.Builder(this).setTitle("薄荷电视 1.4.0 · "+Store.activeProfile(this).label())
             .setMessage((Store.isManual(this)?"手动模式":"自动适配")+"\n"+Store.prefs(this).getString("geoStatus","首次联网后识别省份和运营商")
                 +"\n最近源更新："+date+"\n"+Store.prefs(this).getString("result","")
                 +"\n\n首次及网络变化时识别公网出口的省份 / 运营商；匹配不变保留原源，每日更新列表。识别或下载失败保留缓存。代理 / VPN 可能改变识别结果，可手动选择。"
                 +"\n\n确定打开直播选台，左右切换分类和频道，返回先收起选台。菜单键选择线路。")
             .setPositiveButton("立即更新",(d,w)->refresh(true,true)).setNeutralButton("更多设置",(d,w)->new TvTools(this).show()).setNegativeButton("返回",null).show();
+    }
+    void networkStatus(){
+        LinearLayout box=col();box.setPadding(dp(24),dp(6),dp(24),dp(8));
+        TextView profile=text(Store.activeProfile(this).label(),25,GREEN);profile.setTypeface(null,Typeface.BOLD);add(box,profile,-1,42);
+        add(box,text(Store.isManual(this)?"手动匹配 · 已保留用户选择":"自动匹配 · 根据公网出口的省份与运营商",13,TEXT),-1,28);
+        TextView detail=text("来源：对应省份 / 运营商的直播源列表\n缓存：同省同运营商，沿用已有源与检测结果\n画质：在已验证可播源中，优先最高分辨率\n更新：每日检查，失败保留现有列表",14,TEXT);detail.setMaxLines(5);add(box,detail,-1,108);
+        TextView scan=text(Health.status(this),12,MUTED);scan.setMaxLines(3);add(box,scan,-1,54);
+        new AlertDialog.Builder(this).setTitle("网络适配状态").setView(box).setPositiveButton("知道了",null).setNeutralButton("网络设置",(d,w)->networkSettings()).show();
     }
     void networkSettings(){
         new AlertDialog.Builder(this).setTitle("网络适配 · "+Store.activeProfile(this).label())
@@ -469,12 +487,12 @@ public class MainActivity extends Activity {
     @Override protected void onStart(){super.onStart();stopped=false;if(current!=null&&player==null)trySource();}
     @Override public void onTrimMemory(int level){super.onTrimMemory(level);if(level>=TRIM_MEMORY_RUNNING_LOW)ProbeBudget.pause(60000);}
     @Override protected void onStop(){
-        stopped=true;digits="";handler.removeCallbacks(tuneNumber);generation++;cancelTimeout();
+        if(lanImport!=null){lanImport.close();lanImport=null;}stopped=true;digits="";handler.removeCallbacks(tuneNumber);generation++;cancelTimeout();
         if(player!=null){video.setPlayer(null);player.release();player=null;}
         if(multicast!=null&&multicast.isHeld())multicast.release();super.onStop();
     }
     @Override protected void onDestroy(){
         if(networkCallback!=null)try{connectivity.unregisterNetworkCallback(networkCallback);}catch(Exception ignored){}
-        handler.removeCallbacksAndMessages(null);super.onDestroy();
+        if(logos!=null)logos.close();if(lanImport!=null)lanImport.close();handler.removeCallbacksAndMessages(null);super.onDestroy();
     }
 }

@@ -16,7 +16,7 @@ public class ProbeJob extends JobService {
     final Handler handler=new Handler(Looper.getMainLooper());
     ExoPlayer probe;SurfaceTexture texture;Surface surface;JobParameters params;
     JSONArray tasks,partial;String epoch;int channel,url;long started,budgetRevision;boolean active,testing,single; JSONObject singleTask;
-    Runnable timeout;int runGeneration,attempt;
+    Runnable timeout;int runGeneration,attempt,decodedWidth,decodedHeight;
     public boolean onStartJob(JobParameters p){
         active=true;final int run=++runGeneration;Store.IO.execute(()->{try{LocalState.open(this);handler.post(()->{if(active&&run==runGeneration&&!begin(p)){active=false;jobFinished(p,false);}});}catch(Exception e){handler.post(()->{if(active&&run==runGeneration){active=false;jobFinished(p,true);}});}});return true;
     }
@@ -47,7 +47,7 @@ public class ProbeJob extends JobService {
         }
         android.net.NetworkInfo network=getSystemService(android.net.ConnectivityManager.class).getActiveNetworkInfo();
         if(network==null||!network.isConnected()){finish(true);return;}
-        final int probeAttempt=++attempt;String address=urls.optString(url);budgetRevision=ProbeBudget.revision;testing=true; if(address.startsWith("rtp://")||address.startsWith("rtsp://")){complete(-1);return;}
+        final int probeAttempt=++attempt;String address=urls.optString(url);budgetRevision=ProbeBudget.revision;decodedWidth=0;decodedHeight=0;testing=true; if(address.startsWith("rtp://")||address.startsWith("rtsp://")){complete(-1);return;}
         try{
             DefaultRenderersFactory renderers=new DefaultRenderersFactory(this).setMediaCodecSelector((mime,secure,tunnel)->{
                 java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> all=androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT.getDecoderInfos(mime,secure,tunnel);
@@ -57,10 +57,12 @@ public class ProbeJob extends JobService {
             });
             DefaultHttpDataSource.Factory http=new DefaultHttpDataSource.Factory().setConnectTimeoutMs(5000).setReadTimeoutMs(5000).setAllowCrossProtocolRedirects(true);
             probe=new ExoPlayer.Builder(this,renderers).setLoadControl(new DefaultLoadControl.Builder().setBufferDurationsMs(1000,2500,250,500).build()).setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(this,http))).build();
+            probe.setTrackSelectionParameters(probe.getTrackSelectionParameters().buildUpon().setViewportSize(Integer.MAX_VALUE,Integer.MAX_VALUE,false).setForceHighestSupportedBitrate(true).build());
             probe.setVolume(0);probe.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).build(),false);
             texture=new SurfaceTexture(0);surface=new Surface(texture);probe.setVideoSurface(surface);
             probe.addListener(new Player.Listener(){
-                public void onRenderedFirstFrame(){if(probeAttempt==attempt)complete(1);}
+                public void onVideoSizeChanged(VideoSize size){if(probeAttempt==attempt){decodedWidth=size.width;decodedHeight=size.height;}}
+                public void onRenderedFirstFrame(){if(probeAttempt==attempt){Format f=probe.getVideoFormat();if(f!=null&&f.width>0&&f.height>0){decodedWidth=f.width;decodedHeight=f.height;}complete(1);}}
                 public void onPlayerError(PlaybackException e){
                     // Decoder / resource limitations are inconclusive, never hide a possibly playable channel.
                     if(probeAttempt==attempt)complete(e.errorCode>=4000&&e.errorCode<6000?0:-1);
@@ -74,7 +76,7 @@ public class ProbeJob extends JobService {
         if(!testing||!current())return;if(budgetRevision!=ProbeBudget.revision||SystemClock.elapsedRealtime()<ProbeBudget.yieldUntil){release();handler.postDelayed(this::next,1000);return;}testing=false;if(timeout!=null)handler.removeCallbacks(timeout);
         android.net.NetworkInfo n=getSystemService(android.net.ConnectivityManager.class).getActiveNetworkInfo();
         if(n==null||!n.isConnected()){finish(true);return;}
-        synchronized(Health.class){if(!current())return;partial.put(result);url++;
+        synchronized(Health.class){if(!current())return;partial.put(SourceRanking.sample(result,decodedWidth,decodedHeight));url++;
             Store.prefs(this).edit().putInt(single?"healthSingleUrl":"healthUrl",url).putString(single?"healthSinglePartial":"healthPartial",partial.toString()).apply();}
 
         handler.post(this::next);

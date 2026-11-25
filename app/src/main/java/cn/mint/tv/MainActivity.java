@@ -58,6 +58,8 @@ public class MainActivity extends Activity {
     ConnectivityManager connectivity;
     ConnectivityManager.NetworkCallback networkCallback;
     android.net.wifi.WifiManager.MulticastLock multicast;
+    final Runnable autoHideDrawer=()->{if(fullscreen&&drawerOpen)closeDrawer();};
+    void resetDrawerTimeout(){handler.removeCallbacks(autoHideDrawer);if(fullscreen&&drawerOpen)handler.postDelayed(autoHideDrawer,30000);}
     final Runnable hideHud=()->{if(hud!=null)hud.setVisibility(View.GONE);};
     final Runnable networkChanged=()->refresh(false,true);
     final Runnable clockTick=new Runnable(){public void run(){
@@ -208,7 +210,7 @@ public class MainActivity extends Activity {
         RowsAdapter adapter=inDrawer?drawerChannelAdapter:channelAdapter;
         ArrayList<String> labels=new ArrayList<>();
         for(Playlist.Channel c:target)labels.add((current!=null&&Playlist.key(current.name).equals(Playlist.key(c.name))?"▶ ":"")
-            +numbers.optInt(Playlist.key(c.name))+"  "+c.name+"\n"+(favorites.contains(Playlist.key(c.name))?"★  ":"")+c.urls.size()+" 条线路");
+            +numbers.optInt(Playlist.key(c.name))+"  "+c.name+(favorites.contains(Playlist.key(c.name))?"  ★":""));
         if(labels.isEmpty())labels.add("暂无匹配频道\n切换分类或清空搜索");
         adapter.rows=labels;adapter.notifyDataSetChanged();
     }
@@ -235,21 +237,21 @@ public class MainActivity extends Activity {
         if(drawerOpen){if(focusGroups)drawerGroups.requestFocus();return;}
         drawerOpen=true;telemetryTime=android.os.SystemClock.elapsedRealtime();telemetryBytes=mediaBytes.get();showDiagnostics();hud.setVisibility(View.GONE);drawerCategory=category;
         if(current!=null&&!query.isEmpty())drawerCategory="全部频道";
-        drawer=new FrameLayout(this);drawer.setBackground(shape(0x88101c22,0x705c8274));
-        int width=Math.min(340,Math.max(280,(int)(getResources().getConfiguration().screenWidthDp*0.40f)));
-        FrameLayout.LayoutParams panel=new FrameLayout.LayoutParams(dp(width),dp(Math.min(390,getResources().getConfiguration().screenHeightDp-72)),Gravity.LEFT|Gravity.CENTER_VERTICAL);
-        panel.setMargins(dp(12),0,0,0);root.addView(drawer,panel);
+        drawer=new FrameLayout(this);drawer.setBackground(shape(0xe6101c22,0x905c8274));
+        int width=Math.min(260,Math.max(240,(int)(getResources().getConfiguration().screenWidthDp*0.28f)));
+        FrameLayout.LayoutParams panel=new FrameLayout.LayoutParams(dp(width),-1,Gravity.LEFT);
+        panel.setMargins(dp(8),dp(8),0,dp(8));root.addView(drawer,panel);
         LinearLayout shell=col();shell.setPadding(dp(8),dp(8),dp(8),dp(6));drawer.addView(shell,new FrameLayout.LayoutParams(-1,-1));
         add(shell,text("直播选台",17,GREEN),-1,24);
         add(shell,text("左右分类 / 频道 · 确定换台",10,MUTED),-1,18);
         LinearLayout lists=row();shell.addView(lists,new LinearLayout.LayoutParams(-1,0,1));
         drawerGroups=list();drawerGroupAdapter=new RowsAdapter(true);drawerGroupAdapter.rows=new ArrayList<>(categories);drawerGroups.setAdapter(drawerGroupAdapter);
-        lists.addView(drawerGroups,new LinearLayout.LayoutParams(dp(86),-1));
+        lists.addView(drawerGroups,new LinearLayout.LayoutParams(dp(80),-1));
         drawerChannels=list();drawerChannelAdapter=new RowsAdapter(true);drawerChannels.setAdapter(drawerChannelAdapter);
         LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,-1,1);cp.leftMargin=dp(8);lists.addView(drawerChannels,cp);
         LinearLayout info=row();info.setGravity(Gravity.CENTER_VERTICAL);info.setPadding(dp(10),dp(7),dp(10),dp(7));info.setBackground(shape(0xd0101c22,0x605c8274));
-        drawerLogo=new ImageView(this);drawerLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);drawerLogo.setBackground(shape(0xe8ffffff,0x00ffffff));add(info,drawerLogo,48,34);
-        LinearLayout words=col();drawerTitle=text("",13,GREEN);drawerTitle.setTypeface(null,Typeface.BOLD);drawerTitle.setMaxLines(1);words.addView(drawerTitle,new LinearLayout.LayoutParams(-1,dp(20)));drawerProgram=text("",11,TEXT);drawerProgram.setMaxLines(2);drawerProgram.setEllipsize(TextUtils.TruncateAt.END);words.addView(drawerProgram,new LinearLayout.LayoutParams(-1,dp(30)));info.addView(words,new LinearLayout.LayoutParams(0,-2,1));add(shell,info,-1,66);updateDrawerInfo();
+        drawerLogo=new ImageView(this);drawerLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);drawerLogo.setBackground(shape(0xe8ffffff,0x00ffffff));add(info,drawerLogo,40,32);
+        LinearLayout words=col();drawerTitle=text("",13,GREEN);drawerTitle.setTypeface(null,Typeface.BOLD);drawerTitle.setMaxLines(1);drawerTitle.setEllipsize(TextUtils.TruncateAt.END);words.addView(drawerTitle,new LinearLayout.LayoutParams(-1,dp(20)));drawerProgram=text("",11,TEXT);drawerProgram.setMaxLines(2);drawerProgram.setEllipsize(TextUtils.TruncateAt.END);words.addView(drawerProgram,new LinearLayout.LayoutParams(-1,dp(30)));info.addView(words,new LinearLayout.LayoutParams(0,-2,1));add(shell,info,-1,66);updateDrawerInfo();
         drawerGroups.setSelection(Math.max(0,categories.indexOf(drawerCategory)));renderChannels(true);
         for(int i=0;i<drawerVisible.size();i++)if(Playlist.key(drawerVisible.get(i).name).equals(Playlist.key(current.name)))drawerChannels.setSelection(i);
         drawerGroups.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
@@ -267,10 +269,10 @@ public class MainActivity extends Activity {
                 if(!Playlist.key(selected.name).equals(Playlist.key(current.name)))play(selected);
                 closeDrawer();}
         });
-        if(focusGroups)drawerGroups.requestFocus();else drawerChannels.requestFocus();
+        if(focusGroups)drawerGroups.requestFocus();else drawerChannels.requestFocus();resetDrawerTimeout();
         android.util.Log.i("MintTV","DRAWER_OPEN channel="+current.name+" playing="+(player!=null&&player.isPlaying()));
     }
-    void closeDrawer(){if(!drawerOpen)return;drawerOpen=false;if(statsPanel!=null)statsPanel.setVisibility(View.GONE);root.removeView(drawer);drawer=null;drawerLogo=null;drawerProgram=null;drawerTitle=null;videoBox.requestFocus();
+    void closeDrawer(){handler.removeCallbacks(autoHideDrawer);if(!drawerOpen)return;drawerOpen=false;if(statsPanel!=null)statsPanel.setVisibility(View.GONE);root.removeView(drawer);drawer=null;drawerLogo=null;drawerProgram=null;drawerTitle=null;videoBox.requestFocus();
         android.util.Log.i("MintTV","DRAWER_CLOSE channel="+(current==null?"":current.name)+" playing="+(player!=null&&player.isPlaying()));}
     void setFullscreen(boolean yes){
         if(fullscreen==yes)return;closeDrawer();fullscreen=yes;
@@ -367,7 +369,7 @@ public class MainActivity extends Activity {
         play(pool.get((at+step+pool.size())%pool.size()));
     }
     void assignNumbers(){numbers=new JSONObject();int n=0;for(Playlist.Channel c:channels)if(!Health.hidden(this,c))try{numbers.put(Playlist.key(c.name),++n);}catch(Exception ignored){}if(networkLabel!=null)updateNetworkLabel();}
-    android.graphics.drawable.Drawable drawerRowBackground(){StateListDrawable d=new StateListDrawable();d.addState(new int[]{android.R.attr.state_pressed},shape(0xd0285746,GREEN));d.addState(new int[]{android.R.attr.state_focused},shape(0xc0285746,GREEN));d.addState(new int[]{android.R.attr.state_selected},shape(0xb0285746,GREEN));d.addState(new int[]{},shape(0x18152229,0x50608072));return d;}
+    android.graphics.drawable.Drawable drawerRowBackground(){StateListDrawable d=new StateListDrawable();d.addState(new int[]{android.R.attr.state_pressed},shape(0xd0285746,GREEN));d.addState(new int[]{android.R.attr.state_focused},shape(0xc0285746,GREEN));d.addState(new int[]{android.R.attr.state_selected},shape(0xb0285746,GREEN));d.addState(new int[]{},shape(0x50152229,0x50608072));return d;}
     void updateDrawerInfo(){if(!drawerOpen||current==null||drawerProgram==null)return;drawerTitle.setText("正在观看 · "+current.name);drawerProgram.setText(Store.prefs(this).getString("epgUrl","").isEmpty()?"节目单已关闭":Epg.summary(this,current.name));String url=current.logo;if(url.isEmpty())url=Epg.logo(this,current.name);if(url.isEmpty()&&Store.prefs(this).getBoolean("defaultLogos",true))url="https://raw.githubusercontent.com/sparkssssssssss/epg/main/logo/"+Uri.encode(ChannelNames.key(current.name))+".png";logos.show(drawerLogo,url);}
     void applyAspect(){if(video!=null)video.presentation(current==null?0:ChannelAspect.mode(Store.prefs(this).getString("channelAspects","{}"),current.name));}
     void aspectDialog(){if(current==null){toast("请先选择频道");return;}new AlertDialog.Builder(this).setTitle(current.name+" · 画面比例").setSingleChoiceItems(new String[]{"自动 · 按信号比例","强制 16:9 · 修正画面被压窄","强制 4:3 · 保持经典画幅","等比放大填满 · 裁切边缘","拉伸铺满 · 随屏幕比例"},ChannelAspect.mode(Store.prefs(this).getString("channelAspects","{}"),current.name),(d,i)->{try{JSONObject modes=new JSONObject(Store.prefs(this).getString("channelAspects","{}"));modes.put(Playlist.key(current.name),i);Store.prefs(this).edit().putString("channelAspects",modes.toString()).apply();applyAspect();}catch(Exception ignored){}d.dismiss();}).setNegativeButton("返回",null).show();}
@@ -376,7 +378,9 @@ public class MainActivity extends Activity {
     void updatePlaybackSummary(){if(state==null)return;String programme=current==null||Store.prefs(this).getString("epgUrl","").isEmpty()?"":Epg.summary(this,current.name).split("\\n",2)[0];state.setText((current==null?"":current.group+" · ")+playbackStatus+(programme.isEmpty()?"":"  |  "+programme));}
 
     void finishNumber(){if(digits.isEmpty())return;if(!hasWindowFocus()){digits="";hideHud.run();return;}int n=Integer.parseInt(digits);digits="";for(Playlist.Channel c:channels)if(numbers.optInt(Playlist.key(c.name))==n){if(Health.hidden(this,c)){toast("该频道已隐藏，请在设置中重检");hideHud.run();return;}closeDrawer();play(c);setFullscreen(true);return;}hideHud.run();toast("没有该编号的频道");}
+    @Override public boolean dispatchTouchEvent(MotionEvent e){if(drawerOpen)resetDrawerTimeout();return super.dispatchTouchEvent(e);}
     @Override public boolean dispatchKeyEvent(KeyEvent e){
+        if(drawerOpen)resetDrawerTimeout();
         int digit=e.getKeyCode()-KeyEvent.KEYCODE_0;if(e.getKeyCode()>=KeyEvent.KEYCODE_NUMPAD_0&&e.getKeyCode()<=KeyEvent.KEYCODE_NUMPAD_9)digit=e.getKeyCode()-KeyEvent.KEYCODE_NUMPAD_0;
         if(ready&&hasWindowFocus()&&digit>=0&&digit<=9){if(e.getAction()==KeyEvent.ACTION_DOWN&&e.getRepeatCount()==0){if(digits.length()>=4)digits="";digits+=digit;hud.setText("频道号："+digits);hud.setVisibility(View.VISIBLE);hud.bringToFront();handler.removeCallbacks(hideHud);handler.removeCallbacks(tuneNumber);handler.postDelayed(tuneNumber,1400);}return true;}
         if(!digits.isEmpty()&&e.getAction()==KeyEvent.ACTION_DOWN&&(e.getKeyCode()==KeyEvent.KEYCODE_DPAD_CENTER||e.getKeyCode()==KeyEvent.KEYCODE_ENTER)){consumeSelectUp=true;handler.removeCallbacks(tuneNumber);finishNumber();return true;}
@@ -417,7 +421,7 @@ public class MainActivity extends Activity {
     void settings(){
         long t=Store.prefs(this).getLong("baseTime",0);
         String date=t==0?"安装包附带的备用列表":new java.text.SimpleDateFormat("MM-dd HH:mm",Locale.CHINA).format(new Date(t));
-        new AlertDialog.Builder(this).setTitle("薄荷电视 1.5.1 · "+Store.activeProfile(this).label())
+        new AlertDialog.Builder(this).setTitle("薄荷电视 1.5.2 · "+Store.activeProfile(this).label())
             .setMessage((Store.isManual(this)?"手动模式":"自动适配")+"\n"+Store.prefs(this).getString("geoStatus","首次联网后识别省份和运营商")
                 +"\n最近源更新："+date+"\n"+Store.prefs(this).getString("result","")
                 +"\n\n首次及网络变化时识别公网出口的省份 / 运营商；匹配不变保留原源，每日更新列表。识别或下载失败保留缓存。代理 / VPN 可能改变识别结果，可手动选择。"
@@ -489,7 +493,7 @@ public class MainActivity extends Activity {
     @Override protected void onStart(){super.onStart();stopped=false;if(current!=null&&player==null)trySource();}
     @Override public void onTrimMemory(int level){super.onTrimMemory(level);if(level>=TRIM_MEMORY_RUNNING_LOW)ProbeBudget.pause(60000);}
     @Override protected void onStop(){
-        if(lanImport!=null){lanImport.close();lanImport=null;}stopped=true;digits="";handler.removeCallbacks(tuneNumber);generation++;cancelTimeout();
+        if(lanImport!=null){lanImport.close();lanImport=null;}handler.removeCallbacks(autoHideDrawer);if(drawerOpen)closeDrawer();stopped=true;digits="";handler.removeCallbacks(tuneNumber);generation++;cancelTimeout();
         if(player!=null){video.setPlayer(null);player.release();player=null;}
         if(multicast!=null&&multicast.isHeld())multicast.release();super.onStop();
     }

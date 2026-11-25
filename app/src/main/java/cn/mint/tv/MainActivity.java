@@ -30,6 +30,8 @@ public class MainActivity extends Activity {
     String category="全部频道", drawerCategory="全部频道", query="";
     Playlist.Channel current;
     int sourceIndex=0, generation=0,sourceAttempt=0;int[] sourceOrder=new int[0];
+    AppUpdate updater;
+    AppUpdate updater(){if(updater==null)updater=new AppUpdate(this);return updater;}
     ChannelLogo logos;TextView drawerTitle,drawerProgram;ImageView drawerLogo;LanImportDialog lanImport;
     boolean fullscreen=false, drawerOpen=false, updating=false, stopped=true, rendered=false;
     boolean pendingDetection=false, pendingForce=false, loadingLists=false;
@@ -127,7 +129,8 @@ public class MainActivity extends Activity {
         home=col();home.setPadding(dp(24),dp(16),dp(24),dp(10));root.addView(home,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout header=row();header.setGravity(Gravity.CENTER_VERTICAL);
         ImageView logo=new ImageView(this);logo.setImageResource(R.drawable.ic_launcher);add(header,logo,42,42);
-        TextView brand=text("薄荷电视",23,TEXT);brand.setTypeface(null,Typeface.BOLD);add(header,brand,130,46);
+        TextView brand=text("薄荷电视",23,TEXT);brand.setTypeface(null,Typeface.BOLD);add(header,brand,116,46);
+        add(header,text("v"+AppUpdate.version(this),12,MUTED),58,46);
         networkLabel=text("",12,GREEN);networkLabel.setFocusable(true);networkLabel.setClickable(true);networkLabel.setOnClickListener(v->networkStatus());header.addView(networkLabel,new LinearLayout.LayoutParams(0,dp(46),1));
         clock=text("",14,MUTED);add(header,clock,52,42);
         add(header,button("搜索",this::searchDialog),66,40);
@@ -426,18 +429,18 @@ public class MainActivity extends Activity {
  void importDialog(){new AlertDialog.Builder(this).setTitle("导入直播源").setItems(new String[]{"订阅网址 · M3U / TXT，每日更新","本地文件 · M3U / M3U8 / TXT","管理已导入的源"},(d,i)->{if(i==0)urlDialog();if(i==1){Intent in=new Intent(Intent.ACTION_OPEN_DOCUMENT);in.setType("*/*");in.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(in,21);}if(i==2)manage();}).setNegativeButton("返回",null).show();}
  void urlDialog(){new AlertDialog.Builder(this).setTitle("添加订阅 / 导入直播源").setItems(new String[]{"手机扫码 · 局域网上传文件或发送网址","遥控器输入订阅网址"},(d,i)->{if(i==0){if(lanImport!=null)lanImport.close();lanImport=new LanImportDialog(this);lanImport.show();}else manualUrlDialog();}).setNegativeButton("返回",null).show();}
  void manualUrlDialog(){EditText input=new EditText(this);input.setTextColor(TEXT);input.setSingleLine(true);input.setHint("https://example.com/live.m3u");input.setInputType(17);LinearLayout box=col();box.setPadding(dp(24),dp(12),dp(24),0);box.addView(input);new AlertDialog.Builder(this).setTitle("添加订阅网址").setView(box).setPositiveButton("导入",(d,w)->{String url=input.getText().toString().trim();toast("正在导入…");io.execute(()->{try{String text=Store.fetch(url);Store.add(this,Uri.parse(url).getHost(),url,text);Health.queueImported(this,Playlist.parse(text));handler.post(()->{reload();toast("导入成功");});}catch(Exception e){handler.post(()->toast("导入失败："+e.getMessage()));}});}).setNegativeButton("取消",null).show();}
- @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==21&&result==RESULT_OK&&data!=null){Uri uri=data.getData();io.execute(()->{try{String text=Store.read(getContentResolver().openInputStream(uri));Store.add(this,"本地列表 "+new java.text.SimpleDateFormat("MM-dd HH:mm",Locale.CHINA).format(new Date()),"",text);Health.queueImported(this,Playlist.parse(text));handler.post(()->{reload();toast("文件导入成功");});}catch(Exception e){handler.post(()->toast("导入失败："+e.getMessage()));}});}}
+ @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==42){if(updater!=null)updater.permissionReturned();return;}if(request==21&&result==RESULT_OK&&data!=null){Uri uri=data.getData();io.execute(()->{try{String text=Store.read(getContentResolver().openInputStream(uri));Store.add(this,"本地列表 "+new java.text.SimpleDateFormat("MM-dd HH:mm",Locale.CHINA).format(new Date()),"",text);Health.queueImported(this,Playlist.parse(text));handler.post(()->{reload();toast("文件导入成功");});}catch(Exception e){handler.post(()->toast("导入失败："+e.getMessage()));}});}}
  void manage(){JSONArray a=Store.imports(this);if(a.length()==0){toast("还没有导入的列表");return;}String[] names=new String[a.length()];for(int i=0;i<names.length;i++)names[i]=a.optJSONObject(i).optString("title")+(a.optJSONObject(i).optString("url").isEmpty()?" · 本地":" · 订阅");new AlertDialog.Builder(this).setTitle("选择要移除的列表").setItems(names,(d,i)->new AlertDialog.Builder(this).setTitle("移除 "+names[i]+"？").setPositiveButton("移除",(x,w)->{Store.remove(this,i);reload();}).setNegativeButton("取消",null).show()).setNegativeButton("返回",null).show();}
 
     void settings(){
         long t=Store.prefs(this).getLong("baseTime",0);
         String date=t==0?"安装包附带的备用列表":new java.text.SimpleDateFormat("MM-dd HH:mm",Locale.CHINA).format(new Date(t));
-        new AlertDialog.Builder(this).setTitle("薄荷电视 1.6.0 · "+Store.activeProfile(this).label())
+        new AlertDialog.Builder(this).setTitle("薄荷电视 "+AppUpdate.version(this)+" · "+Store.activeProfile(this).label())
             .setMessage((Store.isManual(this)?"手动模式":"自动适配")+"\n"+Store.prefs(this).getString("geoStatus","首次联网后识别省份和运营商")
                 +"\n列表来源："+Store.prefs(this).getString("baseOrigin",t==0?"内置备用列表":"上次缓存")+"\n最近源更新："+date+"\n"+Store.prefs(this).getString("result","")
                 +"\n\n首次及网络变化时识别公网出口的省份 / 运营商；匹配不变保留原源，每日更新列表。识别或下载失败保留缓存。代理 / VPN 可能改变识别结果，可手动选择。"
                 +"\n\n确定打开直播选台，左右切换分类和频道，返回先收起选台。菜单键选择线路。")
-            .setPositiveButton("立即更新",(d,w)->refresh(true,true)).setNeutralButton("更多设置",(d,w)->new TvTools(this).show()).setNegativeButton("返回",null).show();
+            .setPositiveButton("更新频道源",(d,w)->refresh(true,true)).setNeutralButton("系统更新",(d,w)->updater().check()).setNegativeButton("更多设置",(d,w)->new TvTools(this).show()).show();
     }
     void networkStatus(){
         LinearLayout box=col();box.setPadding(dp(24),dp(6),dp(24),dp(8));
@@ -510,6 +513,6 @@ public class MainActivity extends Activity {
     }
     @Override protected void onDestroy(){
         if(networkCallback!=null)try{connectivity.unregisterNetworkCallback(networkCallback);}catch(Exception ignored){}
-        if(logos!=null)logos.close();if(lanImport!=null)lanImport.close();handler.removeCallbacksAndMessages(null);super.onDestroy();
+        if(updater!=null)updater.close();if(logos!=null)logos.close();if(lanImport!=null)lanImport.close();handler.removeCallbacksAndMessages(null);super.onDestroy();
     }
 }

@@ -6,6 +6,15 @@ import org.json.*;
 public final class SourceRanking {
     public static int verdict(Object state) { return state instanceof JSONObject ? ((JSONObject)state).optInt("state",0) : state instanceof Number ? ((Number)state).intValue() : 0; }
     public static JSONObject sample(int state,int width,int height) { JSONObject out=new JSONObject();try { out.put("state",state).put("width",Math.max(0,width)).put("height",Math.max(0,height)); } catch(JSONException ignored) {} return out; }
+    /** A partial quality scan must not discard successful sources it did not test. */
+    public static void mergeUntested(JSONArray good,JSONObject quality,JSONObject previous,JSONArray tested){
+        if(previous==null)return;JSONArray before=previous.optJSONArray("good");JSONObject old=previous.optJSONObject("quality");
+        if(before==null)return;
+        for(int i=0;i<before.length();i++){String address=before.optString(i);boolean included=false;
+            for(int j=0;j<tested.length();j++)if(address.equals(tested.optString(j)))included=true;
+            if(!included){good.put(address);if(old!=null&&old.has(address))try{quality.put(address,old.getJSONObject(address));}catch(JSONException ignored){}}
+        }
+    }
     public static int[] order(List<String> urls,JSONArray good,JSONObject quality) {
         Set<String> usable=new HashSet<>();if(good!=null)for(int i=0;i<good.length();i++)usable.add(good.optString(i));
         List<Integer> indices=new ArrayList<>();for(int i=0;i<urls.size();i++)indices.add(i);

@@ -15,7 +15,7 @@ import org.json.*;
 public class ProbeJob extends JobService {
     final Handler handler=new Handler(Looper.getMainLooper());
     ExoPlayer probe;SurfaceTexture texture;Surface surface;JobParameters params;
-    JSONArray tasks,partial;String epoch;int channel,url;long started,budgetRevision;boolean active,testing,single; JSONObject singleTask;
+    JSONArray tasks,partial;String epoch;int channel,url;long started,budgetRevision;boolean active,testing,single,hardware; JSONObject singleTask;
     Runnable timeout;int runGeneration,attempt,decodedWidth,decodedHeight;
     public boolean onStartJob(JobParameters p){
         active=true;final int run=++runGeneration;Store.IO.execute(()->{try{LocalState.open(this);handler.post(()->{if(active&&run==runGeneration&&!begin(p)){active=false;jobFinished(p,false);}});}catch(Exception e){handler.post(()->{if(active&&run==runGeneration){active=false;jobFinished(p,true);}});}});return true;
@@ -47,13 +47,16 @@ public class ProbeJob extends JobService {
         }
         android.net.NetworkInfo network=getSystemService(android.net.ConnectivityManager.class).getActiveNetworkInfo();
         if(network==null||!network.isConnected()){finish(true);return;}
-        final int probeAttempt=++attempt;String address=urls.optString(url);budgetRevision=ProbeBudget.revision;decodedWidth=0;decodedHeight=0;testing=true; if(address.startsWith("rtp://")||address.startsWith("rtsp://")){complete(-1);return;}
+        hardware=false;startProbe(urls.optString(url));
+    }
+    void startProbe(String address){
+        final int probeAttempt=++attempt;budgetRevision=ProbeBudget.revision;decodedWidth=0;decodedHeight=0;testing=true; if(address.startsWith("rtp://")||address.startsWith("rtsp://")){complete(-1);return;}
         try{
             DefaultRenderersFactory renderers=new DefaultRenderersFactory(this).setMediaCodecSelector((mime,secure,tunnel)->{
                 java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> all=androidx.media3.exoplayer.mediacodec.MediaCodecSelector.DEFAULT.getDecoderInfos(mime,secure,tunnel);
                 java.util.List<androidx.media3.exoplayer.mediacodec.MediaCodecInfo> software=new java.util.ArrayList<>();
                 for(androidx.media3.exoplayer.mediacodec.MediaCodecInfo codec:all)if(codec.softwareOnly)software.add(codec);
-                return software;
+                return hardware?all:software;
             });
             HttpDataSource.Factory http=LiveNetwork.http(this);
             probe=new ExoPlayer.Builder(this,renderers).setLoadControl(new DefaultLoadControl.Builder().setBufferDurationsMs(1000,2500,250,500).build()).setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(this,http))).build();
@@ -65,10 +68,13 @@ public class ProbeJob extends JobService {
                 public void onRenderedFirstFrame(){if(probeAttempt==attempt){Format f=probe.getVideoFormat();if(f!=null&&f.width>0&&f.height>0){decodedWidth=f.width;decodedHeight=f.height;}complete(1);}}
                 public void onPlayerError(PlaybackException e){
                     // Decoder / resource limitations are inconclusive, never hide a possibly playable channel.
-                    if(probeAttempt==attempt)complete(e.errorCode>=4000&&e.errorCode<6000?0:-1);
+                    if(probeAttempt!=attempt)return;
+                    if(ProbePolicy.retryHardware(e.errorCode,ProbeBudget.foreground,hardware)){release();hardware=true;startProbe(address);return;}
+                    complete(ProbePolicy.verdict(e.errorCode));
                 }
             });
-            timeout=()->{if(probeAttempt==attempt)complete(-1);};handler.postDelayed(timeout,14000);
+            if(hardware)ProbeBudget.cancelHardware=()->{if(probeAttempt==attempt){complete(0);release();}};
+            timeout=()->{if(probeAttempt==attempt)complete(0);};handler.postDelayed(timeout,hardware?5000:14000);
             probe.setMediaItem(MediaItem.fromUri(address));probe.prepare();probe.play();
         }catch(Exception e){complete(0);}
     }
@@ -81,7 +87,7 @@ public class ProbeJob extends JobService {
 
         handler.post(this::next);
     }
-    void release(){attempt++;if(timeout!=null)handler.removeCallbacks(timeout);testing=false;
+    void release(){ProbeBudget.cancelHardware=null;attempt++;if(timeout!=null)handler.removeCallbacks(timeout);testing=false;
         if(probe!=null){probe.release();probe=null;}if(surface!=null){surface.release();surface=null;}if(texture!=null){texture.release();texture=null;}}
     void finish(boolean retry){active=false;handler.removeCallbacksAndMessages(null);release();if(params!=null)jobFinished(params,retry);}
     public boolean onStopJob(JobParameters p){runGeneration++;active=false;handler.removeCallbacksAndMessages(null);release();return true;}

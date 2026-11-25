@@ -52,6 +52,33 @@ public final class Health {
         return SourceRanking.order(channel.urls,r==null?null:r.optJSONArray("good"),r==null?null:r.optJSONObject("quality"));
     }
     public static int first(Context c,Playlist.Channel channel){int[] order=order(c,channel);return order.length==0?0:order[0];}
+    /** Foreground first-frame evidence is as authoritative as a successful background probe. */
+    public static synchronized void played(Context c,String epoch,Playlist.Channel channel,String address,int width,int height){
+        if(!valid(c)||!epoch.equals(Store.prefs(c).getString("healthEpoch",""))||width<=0||height<=0)return;
+        try{JSONObject all=results(c),r=all.optJSONObject(Playlist.key(channel.name));if(r==null)r=new JSONObject();
+            JSONArray good=r.optJSONArray("good");if(good==null)good=new JSONArray();boolean found=false;
+            for(int i=0;i<good.length();i++)if(address.equals(good.optString(i)))found=true;
+            if(!found)good.put(address);JSONObject quality=r.optJSONObject("quality");if(quality==null)quality=new JSONObject();
+            JSONObject old=quality.optJSONObject(address);if(found&&!r.optBoolean("hidden")&&old!=null&&old.optInt("width")==width&&old.optInt("height")==height)return;
+            quality.put(address,SourceRanking.sample(1,width,height));r.put("good",good).put("quality",quality).put("hidden",false);
+            all.put(Playlist.key(channel.name),r);Store.prefs(c).edit().putString("healthResults",all.toString()).putLong("healthRevision",System.currentTimeMillis()).apply();
+        }catch(Exception e){android.util.Log.w("MintTV","Playback quality deferred");}
+    }
+    /** Retry only unresolved sources while the UI is stopped, at most once per network per day. */
+    public static synchronized void queueUncertain(Context c){
+        if(!valid(c)||ProbeBudget.foreground)return;long now=System.currentTimeMillis();String scope=Store.activeProfile(c).key();
+        if(scope.equals(Store.prefs(c).getString("backfillScope",""))&&now-Store.prefs(c).getLong("backfillTime",0)<86400000L)return;
+        try{JSONArray queue=new JSONArray(Store.prefs(c).getString("healthPriority","[]"));Set<String> names=new HashSet<>();
+            for(int i=0;i<queue.length();i++)names.add(queue.getJSONObject(i).optString("name"));boolean added=false;
+            for(Playlist.Channel channel:Store.channels(c)){JSONObject r=results(c).optJSONObject(Playlist.key(channel.name));
+                if(r==null||!r.optBoolean("uncertain")||r.optBoolean("hidden")||names.contains(channel.name))continue;
+                JSONArray good=r.optJSONArray("good"),urls=new JSONArray();
+                for(String address:channel.urls){boolean known=false;if(good!=null)for(int i=0;i<good.length();i++)if(address.equals(good.optString(i)))known=true;if(!known)urls.put(address);}
+                if(urls.length()>0){queue.put(new JSONObject().put("name",channel.name).put("urls",urls).put("qualityOnly",true).put("merge",true));added=true;}
+            }
+            if(added){Store.prefs(c).edit().putString("healthPriority",queue.toString()).putString("backfillScope",scope).putLong("backfillTime",now).apply();schedule(c,false);}
+        }catch(Exception e){android.util.Log.w("MintTV","Unresolved quality retry deferred");}
+    }
     public static synchronized String qualityLabel(Context c,Playlist.Channel channel,int index){
         JSONObject r=valid(c)?results(c).optJSONObject(Playlist.key(channel.name)):null;JSONObject q=r==null?null:r.optJSONObject("quality");JSONObject v=q==null?null:q.optJSONObject(channel.urls.get(index));
         return SourceRanking.pixels(v)>0?v.optInt("width")+" × "+v.optInt("height"):"分辨率待检测";
@@ -76,6 +103,7 @@ public final class Health {
             if(SourceRanking.verdict(states.opt(i))==0&&wasGood)good.put(address);
             if(SourceRanking.verdict(states.opt(i))>=0&&oldQuality!=null&&SourceRanking.pixels(quality.optJSONObject(address))==0&&oldQuality.optJSONObject(address)!=null)try{quality.put(address,oldQuality.getJSONObject(address));}catch(Exception ignored){}
         }}
+        if(task.optBoolean("merge"))SourceRanking.mergeUntested(good,quality,previous,urls);
         try{r.put("hidden",task.optBoolean("qualityOnly")?previous!=null&&previous.optBoolean("hidden"):ProbeVerdict.hidden(previous!=null&&previous.optBoolean("hidden"),verdicts));if(uncertain&&good.length()==0&&previous!=null)good=previous.optJSONArray("good")==null?good:previous.optJSONArray("good");if(uncertain&&quality.length()==0&&previous!=null&&previous.optJSONObject("quality")!=null)quality=previous.optJSONObject("quality");r.put("good",good);r.put("quality",quality);r.put("uncertain",uncertain);r.put("checkedAt",System.currentTimeMillis());
             all.put(Playlist.key(task.optString("name")),r);}catch(Exception ignored){}
         android.util.Log.i("MintTV","PROBE_CHANNEL_COMPLETE "+nextChannel+" "+task.optString("name")+" good="+good.length());
@@ -97,8 +125,8 @@ public final class Health {
     static int priorityCount(Context c){try{return new JSONArray(Store.prefs(c).getString("healthPriority","[]")).length();}catch(Exception e){return 0;}}
     public static synchronized String status(Context c){
         int total=0;try{total=new JSONArray(Store.prefs(c).getString("healthTasks","[]")).length();}catch(Exception ignored){}
-        int hidden=0;JSONObject all=results(c);for(Iterator<String> it=all.keys();it.hasNext();){JSONObject v=all.optJSONObject(it.next());if(v!=null&&v.optBoolean("hidden"))hidden++;}
-        return "已隐藏 "+hidden+" 个 · "+(Store.prefs(c).getBoolean("healthDone",false)?"检测完成":"后台检测中")+" · "+Store.prefs(c).getInt("healthChannel",0)+" / "+total+" 个频道 · 高清优选队列 "+priorityCount(c);
+        int hidden=0,uncertain=0;JSONObject all=results(c);for(Iterator<String> it=all.keys();it.hasNext();){JSONObject v=all.optJSONObject(it.next());if(v!=null&&v.optBoolean("hidden"))hidden++;if(v!=null&&v.optBoolean("uncertain"))uncertain++;}
+        return "已隐藏 "+hidden+" 个 · "+(Store.prefs(c).getBoolean("healthDone",false)?"检测完成":"后台检测中")+" · "+Store.prefs(c).getInt("healthChannel",0)+" / "+total+" 个频道 · 待确认 "+uncertain+" 个 · 高清优选队列 "+priorityCount(c);
     }
 }
 

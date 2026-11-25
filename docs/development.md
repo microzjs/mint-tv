@@ -22,11 +22,22 @@ adb install -r app/build/outputs/apk/compat/app-compat.apk
 | 模块 | 作用 |
 | --- | --- |
 | MainActivity / TvPlayerView | 原生电视界面、遥控器、播放和按频道画幅 |
-| Playlist / Store / NetworkProfile | 解析、订阅更新与省份运营商匹配 |
-| Health / ProbeJob / SourceRanking | 实际试播、缓存、隐藏规则和分辨率优选 |
+| Playlist / PlaylistDownload / Store / NetworkProfile | 解析、公开列表备用下载、订阅更新与省份运营商匹配 |
+| Health / ProbeJob / ProbePolicy / ProbeBudget / SourceRanking | 实际试播、前后台解码预算、画质证据、隐藏规则和分辨率优选 |
 | LocalState / StateDisk | 内存快照及分桶持久化，保留旧数据迁移留底 |
 | Epg / EpgParser / ChannelLogo | 当前／下一节目、保守名称匹配、小尺寸台标 |
 | LanImportServer / LanImportDialog | 仅临时开放的局域网导入会话和二维码 |
-| BackupData / PublicBackups / TvTools | 校验后的备份恢复、电视下载目录与设置 |
+| TvTools / BackupData | 频道与网络设置、旧数据校验及网址校验；没有备份恢复菜单 |
 
 测试放在 `app/src/test`，覆盖排序、回退顺序、旧检测格式、画幅、XMLTV、局域网 HTTP 会话、备份与持久化异常恢复；独立 `scripts/test-playlist.*` 覆盖列表快照和 93 种网络匹配组合。真机验证仍需要实际设备，JVM 测试不代替播放器／系统文件服务回归。
+
+## 1.6.0 的容错与画质规则
+
+- 仅内置公开频道列表依次尝试 GitHub raw、jsDelivr；总下载预算 8 秒。逐个校验解析结果，全部失败不替换缓存。自定义订阅和直播请求不转发给镜像。
+- 设置显示最近成功列表的下载来源；缓存与安装包内的福建移动列表继续作为本地回退。备用列表不保证跨运营商可播。
+- 前台使用解码器前，同步取消后台硬解试播；后台遇到软件解码器不足时，最多追加一次 5 秒硬解尝试。前台播放时不抢硬解资源。
+- 试播超时及解码资源不足属于“不确定”，不作为隐藏频道的依据；确认网络或源错误仍计失败。
+- 实际观看首帧成功后，将该源及分辨率写入当前网络的画质缓存，不强制打断当前频道切源。
+- 退出到后台后，可对仍未验证的源补验；同一网络最多每天安排一次，已确认的源不重扫。系统调度可能推迟执行；强制停止应用时不保证后台作业运行。
+- 主界面“重试”和空频道行提供恢复观看入口；保留现有分类、单行频道条目与地方台画幅修正。
+- 已移除未使用的历史模块、相关旧测试、组播锁及对应权限；保留 LocalState 仍引用的数据校验辅助方法。

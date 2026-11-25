@@ -57,7 +57,6 @@ public class MainActivity extends Activity {
     Runnable timeout;
     ConnectivityManager connectivity;
     ConnectivityManager.NetworkCallback networkCallback;
-    android.net.wifi.WifiManager.MulticastLock multicast;
     final Runnable autoHideDrawer=()->{if(fullscreen&&drawerOpen)closeDrawer();};
     void resetDrawerTimeout(){handler.removeCallbacks(autoHideDrawer);if(fullscreen&&drawerOpen)handler.postDelayed(autoHideDrawer,30000);}
     final Runnable hideHud=()->{if(hud!=null)hud.setVisibility(View.GONE);};
@@ -81,15 +80,13 @@ public class MainActivity extends Activity {
             try{LocalState.open(this);Epg.defaults(this);if(!Store.prefs(this).getBoolean("aspectCorrections14",false))Store.prefs(this).edit().putString("channelAspects",ChannelAspect.defaults(Store.prefs(this).getString("channelAspects","{}")).toString()).putBoolean("aspectCorrections14",true).apply();java.util.List<Playlist.Channel> loaded=Store.channels(this);
                 handler.post(()->{if(isDestroyed())return;channels.addAll(loaded);favorites=new HashSet<>(Store.prefs(this).getStringSet("favorites",new HashSet<>()));
                     ready=true;logos=new ChannelLogo(this);assignNumbers();Store.schedule(this);
-                    android.net.wifi.WifiManager wifi=(android.net.wifi.WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);
-                    if(wifi!=null){multicast=wifi.createMulticastLock("mint-stream");multicast.setReferenceCounted(false);}
                     build();handler.post(clockTick);handler.post(telemetryTick);registerNetwork();refresh(false,true);
                     String last=Store.prefs(this).getString("last","");
                     for(Playlist.Channel c:channels)if(c.name.equals(last)&&!Health.hidden(this,c)){
                         if(isTv()&&!stopped){play(c);setFullscreen(true);}else focusChannel(c);return;}
                     channelList.requestFocus();
                 });
-            }catch(Exception e){handler.post(()->loading.setText("本地数据加载失败，原数据未覆盖。请保留应用并重试。\n"+e.getMessage()));}
+            }catch(Exception e){handler.post(()->loading.setText("本地数据加载失败，原数据未覆盖。请保留应用并重新打开。"));}
         });
     }
     boolean isTv(){
@@ -156,7 +153,7 @@ public class MainActivity extends Activity {
         title=text("把电视，变简单。",18,TEXT);title.setTypeface(null,Typeface.BOLD);add(preview,title,-1,26);
         state=text("请选择频道，按确定观看",12,MUTED);state.setSingleLine(true);state.setEllipsize(TextUtils.TruncateAt.END);add(preview,state,-1,22);
         LinearLayout controls=row();add(controls,button("线路",this::sources),76,38);
-        add(controls,button("收藏",this::toggleFavorite),70,38);add(controls,button("画面",this::aspectDialog),70,38);add(controls,button("重试",()->{if(current!=null)play(current);}),76,38);preview.addView(controls);
+        add(controls,button("收藏",this::toggleFavorite),70,38);add(controls,button("画面",this::aspectDialog),70,38);add(controls,button("重试",this::recovery),76,38);preview.addView(controls);
         add(home,text("左右切换分类 / 频道   ·   确定直接观看   ·   播放中确定打开选台   ·   返回关闭选台 / 返回主页",11,MUTED),-1,24);
         hud=text("",15,TEXT);hud.setPadding(dp(18),dp(12),dp(18),dp(12));hud.setBackground(shape(0xe6152229,0xff285746));
         FrameLayout.LayoutParams hp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.LEFT);hp.setMargins(dp(28),dp(24),dp(28),0);
@@ -177,7 +174,7 @@ public class MainActivity extends Activity {
         channelList.setOnKeyListener((v,k,e)->{
             if(e.getAction()==KeyEvent.ACTION_DOWN&&k==KeyEvent.KEYCODE_DPAD_LEFT){categoryList.requestFocus();return true;}return false;
         });
-        channelList.setOnItemClickListener((p,v,pos,id)->{if(pos<visible.size()){play(visible.get(pos));setFullscreen(true);}});
+        channelList.setOnItemClickListener((p,v,pos,id)->{if(pos<visible.size()){play(visible.get(pos));setFullscreen(true);}else recovery();});
         channelList.setOnItemLongClickListener((p,v,pos,id)->{if(pos<visible.size()){play(visible.get(pos));sources();}return true;});
     }
     void reloadViews(){
@@ -211,7 +208,7 @@ public class MainActivity extends Activity {
         ArrayList<String> labels=new ArrayList<>();
         for(Playlist.Channel c:target)labels.add((current!=null&&Playlist.key(current.name).equals(Playlist.key(c.name))?"▶ ":"")
             +numbers.optInt(Playlist.key(c.name))+"  "+c.name+(favorites.contains(Playlist.key(c.name))?"  ★":""));
-        if(labels.isEmpty())labels.add("暂无匹配频道\n切换分类或清空搜索");
+        if(labels.isEmpty())labels.add("暂无频道 · 确定恢复");
         adapter.rows=labels;adapter.notifyDataSetChanged();
     }
     class RowsAdapter extends BaseAdapter {
@@ -324,7 +321,7 @@ public class MainActivity extends Activity {
         video.setPlayer(player);player.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),true);
         player.addListener(new Player.Listener(){
             public void onPlayerError(PlaybackException e){android.util.Log.w("MintTV","source="+sourceIndex+" "+e.getErrorCodeName());advance("线路不可用");}
-            public void onRenderedFirstFrame(){rendered=true;cancelTimeout();setPlaybackState("正在播放 · 线路 "+(sourceIndex+1)+" / "+current.urls.size());
+            public void onRenderedFirstFrame(){rememberPlayback();rendered=true;cancelTimeout();setPlaybackState("正在播放 · 线路 "+(sourceIndex+1)+" / "+current.urls.size());
                 android.util.Log.i("MintTV","FIRST_FRAME "+current.name+" source="+sourceIndex);}
             public void onIsPlayingChanged(boolean playing){if(playing&&rendered){cancelTimeout();setPlaybackState("正在播放 · 线路 "+(sourceIndex+1)+" / "+current.urls.size());}}
             public void onPlaybackStateChanged(int s){if(current==null||stopped)return;
@@ -339,7 +336,7 @@ public class MainActivity extends Activity {
         Store.prefs(this).edit().putString("last",c.name).apply();updateEpg();if(!stopped)trySource();renderChannels(false);showHud();
     }
     void trySource(){
-        ProbeBudget.pause(8000);cancelTimeout();initPlayer();videoDecoder="等待解码";audioDecoder="等待解码";rendered=false;if(multicast!=null&&!multicast.isHeld())multicast.acquire();
+        ProbeBudget.foreground(true);ProbeBudget.pause(8000);cancelTimeout();initPlayer();videoDecoder="等待解码";audioDecoder="等待解码";rendered=false;
         generation++;int g=generation;setPlaybackState("正在连接 · 线路 "+(sourceIndex+1)+" / "+current.urls.size());player.stop();
         String url=current.urls.get(sourceIndex);
         if(url.startsWith("rtp://")||url.startsWith("rtsp://")){handler.post(()->{if(g==generation)advance("此协议需导入 HTTP 代理源");});return;}
@@ -350,7 +347,21 @@ public class MainActivity extends Activity {
     void advance(String reason){
         cancelTimeout();if(stopped||current==null)return;
         if(sourceAttempt+1<sourceOrder.length){sourceAttempt++;sourceIndex=sourceOrder[sourceAttempt];trySource();}
-        else{generation++;if(player!=null)player.stop();setPlaybackState("全部线路暂不可用 · 检查网络或选择其他源");toast(reason+"，已尝试全部 "+current.urls.size()+" 条线路");}
+        else{generation++;if(player!=null)player.stop();ProbeBudget.foreground(false);setPlaybackState("线路暂不可用 · 按重试恢复");toast(reason+"，已尝试全部 "+current.urls.size()+" 条线路");}
+    }
+    void rememberPlayback(){
+        if(current==null||player==null)return;Format format=player.getVideoFormat();if(format==null)return;
+        String epoch=Store.prefs(this).getString("healthEpoch","");Playlist.Channel channel=current;String address=current.urls.get(sourceIndex);int width=format.width,height=format.height;
+        io.execute(()->Health.played(this,epoch,channel,address,width,height));
+    }
+    void recovery(){
+        new AlertDialog.Builder(this).setTitle("恢复观看 · 选择操作")
+            .setItems(new String[]{"重试当前频道","更新列表并重新检测","选择省份与运营商","检查网络连接"},(d,i)->{
+                if(i==0){if(current!=null)play(current);else{query="";category="全部频道";reloadViews();toast("请选择频道，或更新列表并重新检测");}}
+                if(i==1){refresh(true,true);io.execute(()->Health.ensure(this,true));toast("正在更新并重新检测，已有频道仍可观看");}
+                if(i==2)networkSettings();
+                if(i==3)try{startActivity(new Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS));}catch(Exception e){toast("请在盒子系统设置中检查网络连接");}
+            }).setNegativeButton("返回",null).show();
     }
     void sources(){
         if(current==null){toast("请先选择频道");return;}
@@ -421,9 +432,9 @@ public class MainActivity extends Activity {
     void settings(){
         long t=Store.prefs(this).getLong("baseTime",0);
         String date=t==0?"安装包附带的备用列表":new java.text.SimpleDateFormat("MM-dd HH:mm",Locale.CHINA).format(new Date(t));
-        new AlertDialog.Builder(this).setTitle("薄荷电视 1.5.2 · "+Store.activeProfile(this).label())
+        new AlertDialog.Builder(this).setTitle("薄荷电视 1.6.0 · "+Store.activeProfile(this).label())
             .setMessage((Store.isManual(this)?"手动模式":"自动适配")+"\n"+Store.prefs(this).getString("geoStatus","首次联网后识别省份和运营商")
-                +"\n最近源更新："+date+"\n"+Store.prefs(this).getString("result","")
+                +"\n列表来源："+Store.prefs(this).getString("baseOrigin",t==0?"内置备用列表":"上次缓存")+"\n最近源更新："+date+"\n"+Store.prefs(this).getString("result","")
                 +"\n\n首次及网络变化时识别公网出口的省份 / 运营商；匹配不变保留原源，每日更新列表。识别或下载失败保留缓存。代理 / VPN 可能改变识别结果，可手动选择。"
                 +"\n\n确定打开直播选台，左右切换分类和频道，返回先收起选台。菜单键选择线路。")
             .setPositiveButton("立即更新",(d,w)->refresh(true,true)).setNeutralButton("更多设置",(d,w)->new TvTools(this).show()).setNegativeButton("返回",null).show();
@@ -495,7 +506,7 @@ public class MainActivity extends Activity {
     @Override protected void onStop(){
         if(lanImport!=null){lanImport.close();lanImport=null;}handler.removeCallbacks(autoHideDrawer);if(drawerOpen)closeDrawer();stopped=true;digits="";handler.removeCallbacks(tuneNumber);generation++;cancelTimeout();
         if(player!=null){video.setPlayer(null);player.release();player=null;}
-        if(multicast!=null&&multicast.isHeld())multicast.release();super.onStop();
+        ProbeBudget.foreground(false);if(ready)io.execute(()->Health.queueUncertain(this));super.onStop();
     }
     @Override protected void onDestroy(){
         if(networkCallback!=null)try{connectivity.unregisterNetworkCallback(networkCallback);}catch(Exception ignored){}

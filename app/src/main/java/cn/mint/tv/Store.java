@@ -62,7 +62,7 @@ public final class Store {
   }else if(forceDetection||now-prefs(c).getLong("geoTime",0)>60000){
    try{desired=NetworkResolver.resolve();geoNote="自动识别 · "+desired.label();android.util.Log.i("MintTV","NETWORK_MATCH "+desired.key());
     prefs(c).edit().putString("detectedProvince",desired.province).putString("detectedCarrier",desired.carrier).apply();
-   }catch(Exception e){geoNote=e.getMessage();android.util.Log.w("MintTV","NETWORK_LOOKUP_FAILED retained="+active.key());}
+   }catch(Exception e){geoNote="暂时无法识别地区，已保留原设置；可手动选择省份与运营商";android.util.Log.w("MintTV","NETWORK_LOOKUP_FAILED retained="+active.key());}
    prefs(c).edit().putLong("geoTime",now).putString("geoStatus",geoNote).apply();
   }else{
    try{desired=new NetworkProfile(prefs(c).getString("detectedProvince",active.province),prefs(c).getString("detectedCarrier",active.carrier));}catch(Exception ignored){}
@@ -73,10 +73,10 @@ public final class Store {
   boolean needBase=profileChanged||due||!prefs(c).contains("province");
   int ok=0,fail=0;boolean changed=false,swapped=false;String reason="";
   if(needBase){
-   try{String text=fetch(desired.url());if(Playlist.parse(text).isEmpty())throw new IOException("匹配地区的源列表为空");
+   try{PlaylistDownload.Result downloaded=PlaylistDownload.load(desired.url());String text=downloaded.text;if(Playlist.parse(text).isEmpty())throw new IOException("匹配地区的源列表为空");
     prefs(c).edit().putString("base",text).putString("province",desired.province).putString("carrier",desired.carrier)
-     .putLong("baseTime",now).apply();ok++;changed=true;swapped=profileChanged;android.util.Log.i("MintTV","PLAYLIST_UPDATED "+desired.key());
-   }catch(Exception e){fail++;reason=e.getMessage();}
+     .putString("baseOrigin",downloaded.origin).putLong("baseTime",now).apply();ok++;changed=true;swapped=profileChanged;android.util.Log.i("MintTV","PLAYLIST_UPDATED "+desired.key());
+   }catch(Exception e){fail++;reason="暂时无法获取匹配列表，请检查网络或手动选择地区";}
   }
   if(due){JSONArray a=imports(c);for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);String url=o.optString("url");if(url.isEmpty())continue;
    try{String t=fetch(url);if(Playlist.parse(t).isEmpty())throw new IOException("列表为空");synchronized(Store.class){JSONArray latest=imports(c);for(int j=0;j<latest.length();j++)if(latest.optJSONObject(j).optString("url").equals(url))latest.optJSONObject(j).put("text",t);prefs(c).edit().putString("imports",latest.toString()).apply();}ok++;changed=true;}catch(Exception e){fail++;}

@@ -1,14 +1,14 @@
 {
-  "tag_name": "v1.6.2",
+  "tag_name": "v1.6.3",
   "draft": false,
   "prerelease": false,
   "assets": [
     {
-      "name": "mint-tv-1.6.2.apk",
-      "browser_download_url": "https://github.com/microzjs/mint-tv/releases/download/v1.6.2/mint-tv-1.6.2.apk",
-      "size": 1326104,
+      "name": "mint-tv-1.6.3.apk",
+      "browser_download_url": "https://github.com/microzjs/mint-tv/releases/download/v1.6.3/mint-tv-1.6.3.apk",
+      "size": 1326681,
       "state": "uploaded",
-      "digest": "sha256:6103e67e4c729afe3ad1fe2d2f99cc021783d8034d30ef62603a21cb98fd1bba"
+      "digest": "sha256:38fcd7dea6d3dd06a19a93c22b481039dce565724537e9fec95c92a734ae48b2"
     }
   ]
 }

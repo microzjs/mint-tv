@@ -4,11 +4,9 @@
 
 **[下载正式版本](https://github.com/microzjs/mint-tv/releases/latest)** · [使用与网络说明](docs/network-routing.md)
 
-当前正式版：**[1.6.2](https://github.com/microzjs/mint-tv/releases/tag/v1.6.2)**。下载 Release 中的 `mint-tv-1.6.2.apk`，安装到电视盒子即可使用；已安装用户可直接覆盖升级，保留收藏和导入。
+当前正式版：**[1.6.3](https://github.com/microzjs/mint-tv/releases/tag/v1.6.3)**。下载 Release 中的 `mint-tv-1.6.3.apk`，安装到电视盒子即可使用；已安装用户可直接覆盖升级，保留收藏和导入。
 
 **后续升级**：设置 → 系统更新。检测到新正式版后自动下载并打开系统安装器；首次可能需要允许安装更新，安装时按系统提示确认。更新会校验包名、版本和签名，不会先卸载软件。
-
-开发中的 **1.6.3 候选版**：[改动说明](docs/release-1.6.3.md)。精简主页底部布局、增加全屏选台长按收藏，并区分地区源与导入订阅的更新结果；等待盒子确认后再正式发布。
 
 ## 它能做什么
 
@@ -57,6 +55,7 @@
 | 频道列表右键 | 将焦点移至右侧详细信息按钮 |
 | 菜单键 | 选择线路或调整画面比例 |
 | 数字键 | 输入连续频道号，确定选台或稍候自动选择 |
+| 全屏选台列表长按确定 | 收藏选中频道，再次长按取消；不打断当前直播 |
 | 返回 | 收起面板或返回主页 |
 | 30 秒无操作 | 自动收起全屏选台面板与播放状态 |
 
@@ -74,6 +73,6 @@
 
 Android 6.0+，面向 Android TV／Google TV 遥控器，兼容手机。覆盖安装保留收藏和导入；不要为了签名不匹配而直接卸载。正式发布指 GitHub 的非预览 Release，本次沿用设备已有签名，未更换证书。
 
-[开发与构建](docs/development.md) · [本版发布说明](docs/release-1.6.2.md) · [历史版本记录](docs/validation-1.4.0.md)
+[开发与构建](docs/development.md) · [本版发布说明](docs/release-1.6.3.md) · [历史版本记录](docs/validation-1.4.0.md)
 
 播放器使用 AndroidX Media3，二维码使用 ZXing。界面和图标为原生实现。请仅使用有权访问的直播源。

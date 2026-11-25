@@ -55,7 +55,7 @@ public class ProbeJob extends JobService {
                 for(androidx.media3.exoplayer.mediacodec.MediaCodecInfo codec:all)if(codec.softwareOnly)software.add(codec);
                 return software;
             });
-            DefaultHttpDataSource.Factory http=new DefaultHttpDataSource.Factory().setConnectTimeoutMs(5000).setReadTimeoutMs(5000).setAllowCrossProtocolRedirects(true);
+            HttpDataSource.Factory http=LiveNetwork.http(this);
             probe=new ExoPlayer.Builder(this,renderers).setLoadControl(new DefaultLoadControl.Builder().setBufferDurationsMs(1000,2500,250,500).build()).setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(this,http))).build();
             probe.setTrackSelectionParameters(probe.getTrackSelectionParameters().buildUpon().setViewportSize(Integer.MAX_VALUE,Integer.MAX_VALUE,false).setForceHighestSupportedBitrate(true).build());
             probe.setVolume(0);probe.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).build(),false);

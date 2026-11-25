@@ -18,9 +18,7 @@ final class AppUpdate {
    OkHttpClient client=new OkHttpClient.Builder().callTimeout(120,TimeUnit.SECONDS).connectTimeout(10,TimeUnit.SECONDS).readTimeout(20,TimeUnit.SECONDS).followSslRedirects(false).build();
    File partial=null;
    try{
-    call=client.newCall(new Request.Builder().url("https://api.github.com/repos/microzjs/mint-tv/releases/latest").header("Accept","application/vnd.github+json").header("User-Agent","MintTV").build());call.timeout().timeout(15,TimeUnit.SECONDS);
-    String json;try(Response r=call.execute()){if(!r.isSuccessful()||r.body()==null)throw new IOException();json=new String(read(r.body().byteStream(),512*1024),java.nio.charset.StandardCharsets.UTF_8);}
-    UpdateRelease release=UpdateRelease.parse(json);
+    UpdateRelease release=metadata(client);
     if(!UpdateRelease.newer(release.version,version(a))){done("当前已是最新正式版 "+version(a));return;}
     if(canceled)return;File dir=new File(a.getCacheDir(),"updater");if(!dir.exists()&&!dir.mkdirs())throw new IOException();partial=new File(dir,"download.part");
     call=client.newCall(new Request.Builder().url(release.url).header("User-Agent","MintTV").build());if(canceled)return;
@@ -39,6 +37,14 @@ final class AppUpdate {
    }catch(Exception e){if(!canceled)done("更新未完成，请检查 GitHub 网络连接后重试；现有版本和数据不受影响");}
    finally{if(canceled)main.post(this::finish);if(partial!=null&&partial.exists())partial.delete();client.connectionPool().evictAll();client.dispatcher().executorService().shutdown();}
   });
+ }
+ UpdateRelease metadata(OkHttpClient client)throws Exception{
+  String[] urls={"https://raw.githubusercontent.com/microzjs/mint-tv/main/releases/latest.json","https://cdn.jsdelivr.net/gh/microzjs/mint-tv@main/releases/latest.json","https://api.github.com/repos/microzjs/mint-tv/releases/latest"};
+  for(String url:urls){if(canceled)throw new IOException();try{
+   call=client.newCall(new Request.Builder().url(url).header("User-Agent","MintTV").header("Cache-Control","no-cache").build());call.timeout().timeout(6,TimeUnit.SECONDS);
+   try(Response r=call.execute()){if(!r.isSuccessful()||r.body()==null)continue;return UpdateRelease.parse(new String(read(r.body().byteStream(),512*1024),java.nio.charset.StandardCharsets.UTF_8));}
+  }catch(Exception e){if(canceled)throw e;}}
+  throw new IOException();
  }
  static byte[] read(InputStream stream,int max)throws IOException{try(InputStream in=stream;ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1){if(out.size()+n>max)throw new IOException();out.write(b,0,n);}return out.toByteArray();}}
  static String hex(byte[] b){StringBuilder out=new StringBuilder();for(byte x:b)out.append(String.format(Locale.ROOT,"%02x",x&255));return out.toString();}

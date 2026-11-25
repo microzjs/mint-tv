@@ -33,6 +33,8 @@ adb install -r app/build/outputs/apk/compat/app-compat.apk
 
 ## 1.6.0 的容错与画质规则
 
+系统更新发布时须同时提交 `releases/latest.json`，使用 GitHub Release 的 `tag_name / draft / prerelease / assets` 格式，包含 APK 名称、正式下载地址、实际大小、`state: uploaded` 与 `sha256:` 摘要。版本信息先读该静态文件，备用 jsDelivr，再尝试 API，避免共享出口的 API 配额限制。只更新正式版本信息；候选包不要更新该文件。系统安装仍要求用户授权和确认。
+
 - 仅内置公开频道列表依次尝试 GitHub raw、jsDelivr；总下载预算 8 秒。逐个校验解析结果，全部失败不替换缓存。自定义订阅和直播请求不转发给镜像。
 - 设置显示最近成功列表的下载来源；缓存与安装包内的福建移动列表继续作为本地回退。备用列表不保证跨运营商可播。
 - 前台使用解码器前，同步取消后台硬解试播；后台遇到软件解码器不足时，最多追加一次 5 秒硬解尝试。前台播放时不抢硬解资源。

@@ -51,7 +51,7 @@ public class MainActivity extends Activity {
     ViewGroup previewParent;
     ViewGroup.LayoutParams previewParams;
     int previewIndex;
-    TextView title, state, networkLabel, clock, hud, expand;
+    TextView title, state, networkLabel, clock, hud;
     ListView categoryList, channelList, drawerGroups, drawerChannels;
     RowsAdapter categoryAdapter, channelAdapter, drawerGroupAdapter, drawerChannelAdapter;
     TvPlayerView video;
@@ -61,6 +61,13 @@ public class MainActivity extends Activity {
     ConnectivityManager.NetworkCallback networkCallback;
     final Runnable autoHideDrawer=()->{if(fullscreen&&drawerOpen)closeDrawer();};
     void resetDrawerTimeout(){handler.removeCallbacks(autoHideDrawer);if(fullscreen&&drawerOpen)handler.postDelayed(autoHideDrawer,30000);}
+    Playlist.Channel heldChannel;boolean heldFavorite;
+    final Runnable favoriteHold=()->{if(heldChannel!=null&&drawerOpen&&drawerChannels.hasFocus()){heldFavorite=true;toggleFavorite(heldChannel);resetDrawerTimeout();}};
+    boolean drawerConfirm(KeyEvent e){
+        int key=e.getKeyCode();if(key!=KeyEvent.KEYCODE_DPAD_CENTER&&key!=KeyEvent.KEYCODE_ENTER&&key!=KeyEvent.KEYCODE_NUMPAD_ENTER)return false;
+        if(e.getAction()==KeyEvent.ACTION_UP&&heldChannel!=null){handler.removeCallbacks(favoriteHold);Playlist.Channel selected=heldChannel;boolean favorite=heldFavorite;heldChannel=null;heldFavorite=false;if(!favorite&&drawerOpen&&drawerChannels.hasFocus()){int pos=drawerChannels.getSelectedItemPosition();if(pos>=0&&pos<drawerVisible.size()&&Playlist.key(selected.name).equals(Playlist.key(drawerVisible.get(pos).name)))drawerChannels.performItemClick(drawerChannels.getSelectedView(),pos,pos);}return true;}
+        if(e.getAction()==KeyEvent.ACTION_DOWN&&drawerOpen&&drawerChannels.hasFocus()){if(e.getRepeatCount()==0){handler.removeCallbacks(favoriteHold);int pos=drawerChannels.getSelectedItemPosition();heldChannel=pos>=0&&pos<drawerVisible.size()?drawerVisible.get(pos):null;heldFavorite=false;if(heldChannel!=null)handler.postDelayed(favoriteHold,ViewConfiguration.getLongPressTimeout());}return true;}return false;
+    }
     final Runnable hideHud=()->{if(hud!=null)hud.setVisibility(View.GONE);};
     final Runnable networkChanged=()->refresh(false,true);
     final Runnable clockTick=new Runnable(){public void run(){
@@ -150,13 +157,10 @@ public class MainActivity extends Activity {
         video=new TvPlayerView(this);applyAspect();video.setUseController(false);video.setFocusable(false);videoBox.addView(video,new FrameLayout.LayoutParams(-1,-1));
         TextView placeholder=text("▶\n选择频道，按确定开始观看",17,MUTED);placeholder.setGravity(Gravity.CENTER);placeholder.setTag("placeholder");
         videoBox.addView(placeholder,new FrameLayout.LayoutParams(-1,-1));
-        expand=button("全屏",()->{if(current==null){toast("请先选择频道");return;}setFullscreen(true);});
-        FrameLayout.LayoutParams ep=new FrameLayout.LayoutParams(dp(76),dp(38),Gravity.RIGHT|Gravity.BOTTOM);
-        ep.setMargins(0,0,dp(10),dp(10));videoBox.addView(expand,ep);
-        title=text("把电视，变简单。",18,TEXT);title.setTypeface(null,Typeface.BOLD);add(preview,title,-1,26);
-        state=text("请选择频道，按确定观看",12,MUTED);state.setSingleLine(true);state.setEllipsize(TextUtils.TruncateAt.END);add(preview,state,-1,22);
-        LinearLayout controls=row();add(controls,button("线路",this::sources),76,38);
-        add(controls,button("收藏",this::toggleFavorite),70,38);add(controls,button("画面",this::aspectDialog),70,38);add(controls,button("重试",this::recovery),76,38);preview.addView(controls);
+        LinearLayout details=row();details.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout words=col();title=text("把电视，变简单。",18,TEXT);title.setTypeface(null,Typeface.BOLD);title.setSingleLine(true);title.setEllipsize(TextUtils.TruncateAt.END);add(words,title,-1,24);
+        state=text("请选择频道，按确定观看",11,MUTED);state.setSingleLine(true);state.setEllipsize(TextUtils.TruncateAt.END);add(words,state,-1,20);details.addView(words,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout controls=row();controls.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);add(controls,button("线路",this::sources),54,30);add(controls,button("收藏",this::toggleFavorite),54,30);add(controls,button("画面",this::aspectDialog),54,30);details.addView(controls,new LinearLayout.LayoutParams(-2,-2));preview.addView(details);
         add(home,text("左右切换分类 / 频道   ·   确定直接观看   ·   播放中确定打开选台   ·   返回关闭选台 / 返回主页",11,MUTED),-1,24);
         hud=text("",15,TEXT);hud.setPadding(dp(18),dp(12),dp(18),dp(12));hud.setBackground(shape(0xe6152229,0xff285746));
         FrameLayout.LayoutParams hp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.LEFT);hp.setMargins(dp(28),dp(24),dp(28),0);
@@ -243,7 +247,7 @@ public class MainActivity extends Activity {
         panel.setMargins(dp(8),dp(8),0,dp(8));root.addView(drawer,panel);
         LinearLayout shell=col();shell.setPadding(dp(8),dp(8),dp(8),dp(6));drawer.addView(shell,new FrameLayout.LayoutParams(-1,-1));
         add(shell,text("直播选台",17,GREEN),-1,24);
-        add(shell,text("左右分类 / 频道 · 确定换台",10,MUTED),-1,18);
+        add(shell,text("确定换台 · 长按收藏 / 取消",10,MUTED),-1,18);
         LinearLayout lists=row();shell.addView(lists,new LinearLayout.LayoutParams(-1,0,1));
         drawerGroups=list();drawerGroupAdapter=new RowsAdapter(true);drawerGroupAdapter.rows=new ArrayList<>(categories);drawerGroups.setAdapter(drawerGroupAdapter);
         lists.addView(drawerGroups,new LinearLayout.LayoutParams(dp(80),-1));
@@ -269,19 +273,20 @@ public class MainActivity extends Activity {
                 if(!Playlist.key(selected.name).equals(Playlist.key(current.name)))play(selected);
                 closeDrawer();}
         });
+        drawerChannels.setOnItemLongClickListener((p,v,pos,id)->{if(pos<drawerVisible.size())toggleFavorite(drawerVisible.get(pos));return true;});
         if(focusGroups)drawerGroups.requestFocus();else drawerChannels.requestFocus();resetDrawerTimeout();
         android.util.Log.i("MintTV","DRAWER_OPEN channel="+current.name+" playing="+(player!=null&&player.isPlaying()));
     }
-    void closeDrawer(){handler.removeCallbacks(autoHideDrawer);if(!drawerOpen)return;drawerOpen=false;if(statsPanel!=null)statsPanel.setVisibility(View.GONE);root.removeView(drawer);drawer=null;drawerLogo=null;drawerProgram=null;drawerTitle=null;videoBox.requestFocus();
+    void closeDrawer(){handler.removeCallbacks(favoriteHold);handler.removeCallbacks(autoHideDrawer);if(!drawerOpen)return;drawerOpen=false;if(statsPanel!=null)statsPanel.setVisibility(View.GONE);root.removeView(drawer);drawer=null;drawerLogo=null;drawerProgram=null;drawerTitle=null;videoBox.requestFocus();
         android.util.Log.i("MintTV","DRAWER_CLOSE channel="+(current==null?"":current.name)+" playing="+(player!=null&&player.isPlaying()));}
     void setFullscreen(boolean yes){
         if(fullscreen==yes)return;closeDrawer();fullscreen=yes;
         if(yes){
             previewParent=(ViewGroup)videoBox.getParent();previewIndex=previewParent.indexOfChild(videoBox);previewParams=videoBox.getLayoutParams();
-            previewParent.removeView(videoBox);home.setVisibility(View.GONE);expand.setVisibility(View.GONE);
+            previewParent.removeView(videoBox);home.setVisibility(View.GONE);
             root.addView(videoBox,0,new FrameLayout.LayoutParams(-1,-1));videoBox.setFocusable(true);videoBox.requestFocus();showHud();
         }else{
-            root.removeView(videoBox);previewParent.addView(videoBox,previewIndex,previewParams);expand.setVisibility(View.VISIBLE);
+            root.removeView(videoBox);previewParent.addView(videoBox,previewIndex,previewParams);
             home.setVisibility(View.VISIBLE);videoBox.setFocusable(false);hud.setVisibility(View.GONE);reloadViews();if(current!=null)focusChannel(current);
         }
     }
@@ -372,10 +377,11 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle(current.name+" · 线路").setSingleChoiceItems(labels,sourceIndex,(d,i)->{sourceOrder=SourceRanking.withFirst(Health.order(this,current),i);sourceAttempt=0;sourceIndex=i;trySource();d.dismiss();showHud();})
             .setNeutralButton("重检当前频道",(d,w)->{Playlist.Channel selected=current;io.execute(()->Health.recheck(this,selected));toast("已加入单频道检测队列");}).setPositiveButton("画面比例",(d,w)->aspectDialog()).setNegativeButton("返回",null).show();
     }
-    void toggleFavorite(){
-        if(current==null){toast("请先选择频道");return;}String key=Playlist.key(current.name);
+    void toggleFavorite(){if(current==null){toast("请先选择频道");return;}toggleFavorite(current);}
+    void toggleFavorite(Playlist.Channel channel){
+        String key=Playlist.key(channel.name);
         if(!favorites.add(key))favorites.remove(key);Store.prefs(this).edit().putStringSet("favorites",new HashSet<>(favorites)).apply();
-        renderChannels(false);if(drawerOpen)renderChannels(true);toast(favorites.contains(key)?"已收藏 "+current.name:"已取消收藏");
+        renderChannels(false);if(drawerOpen)renderChannels(true);toast(favorites.contains(key)?"已收藏 "+channel.name:"已取消收藏 "+channel.name);
     }
     void channelStep(int step){
         List<Playlist.Channel> pool=filtered(category,false);if(pool.isEmpty())pool=filtered("全部频道",false);if(pool.isEmpty())return;
@@ -404,6 +410,7 @@ public class MainActivity extends Activity {
             if(e.getAction()==KeyEvent.ACTION_UP)consumeSelectUp=false;
             return true;
         }
+        if(drawerConfirm(e))return true;
         if(e.getAction()==KeyEvent.ACTION_DOWN){int k=e.getKeyCode();
             if(k==KeyEvent.KEYCODE_MENU){sources();return true;}
             if(!drawerOpen&&(k==KeyEvent.KEYCODE_CHANNEL_UP||k==KeyEvent.KEYCODE_CHANNEL_DOWN)){channelStep(k==KeyEvent.KEYCODE_CHANNEL_UP?1:-1);return true;}
@@ -430,7 +437,7 @@ public class MainActivity extends Activity {
  void urlDialog(){new AlertDialog.Builder(this).setTitle("添加订阅 / 导入直播源").setItems(new String[]{"手机扫码 · 局域网上传文件或发送网址","遥控器输入订阅网址"},(d,i)->{if(i==0){if(lanImport!=null)lanImport.close();lanImport=new LanImportDialog(this);lanImport.show();}else manualUrlDialog();}).setNegativeButton("返回",null).show();}
  void manualUrlDialog(){EditText input=new EditText(this);input.setTextColor(TEXT);input.setSingleLine(true);input.setHint("https://example.com/live.m3u");input.setInputType(17);LinearLayout box=col();box.setPadding(dp(24),dp(12),dp(24),0);box.addView(input);new AlertDialog.Builder(this).setTitle("添加订阅网址").setView(box).setPositiveButton("导入",(d,w)->{String url=input.getText().toString().trim();toast("正在导入…");io.execute(()->{try{String text=Store.fetch(url);Store.add(this,Uri.parse(url).getHost(),url,text);Health.queueImported(this,Playlist.parse(text));handler.post(()->{reload();toast("导入成功");});}catch(Exception e){handler.post(()->toast("导入失败："+e.getMessage()));}});}).setNegativeButton("取消",null).show();}
  @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==42){if(updater!=null)updater.permissionReturned();return;}if(request==21&&result==RESULT_OK&&data!=null){Uri uri=data.getData();io.execute(()->{try{String text=Store.read(getContentResolver().openInputStream(uri));Store.add(this,"本地列表 "+new java.text.SimpleDateFormat("MM-dd HH:mm",Locale.CHINA).format(new Date()),"",text);Health.queueImported(this,Playlist.parse(text));handler.post(()->{reload();toast("文件导入成功");});}catch(Exception e){handler.post(()->toast("导入失败："+e.getMessage()));}});}}
- void manage(){JSONArray a=Store.imports(this);if(a.length()==0){toast("还没有导入的列表");return;}String[] names=new String[a.length()];for(int i=0;i<names.length;i++)names[i]=a.optJSONObject(i).optString("title")+(a.optJSONObject(i).optString("url").isEmpty()?" · 本地":" · 订阅");new AlertDialog.Builder(this).setTitle("选择要移除的列表").setItems(names,(d,i)->new AlertDialog.Builder(this).setTitle("移除 "+names[i]+"？").setPositiveButton("移除",(x,w)->{Store.remove(this,i);reload();}).setNegativeButton("取消",null).show()).setNegativeButton("返回",null).show();}
+ void manage(){JSONArray a=Store.imports(this);if(a.length()==0){toast("还没有导入的列表");return;}String[] names=new String[a.length()];for(int i=0;i<names.length;i++)names[i]=a.optJSONObject(i).optString("title")+(a.optJSONObject(i).optString("url").isEmpty()?" · 本地":" · 订阅")+(a.optJSONObject(i).optString("updateError").isEmpty()?"":"\n"+a.optJSONObject(i).optString("updateError"));new AlertDialog.Builder(this).setTitle("导入管理 · 选择后可移除").setItems(names,(d,i)->new AlertDialog.Builder(this).setTitle("移除 "+names[i]+"？").setPositiveButton("移除",(x,w)->{Store.remove(this,i);reload();}).setNegativeButton("取消",null).show()).setNegativeButton("返回",null).show();}
 
     void settings(){
         long t=Store.prefs(this).getLong("baseTime",0);
@@ -507,7 +514,7 @@ public class MainActivity extends Activity {
     @Override protected void onStart(){super.onStart();stopped=false;if(current!=null&&player==null)trySource();}
     @Override public void onTrimMemory(int level){super.onTrimMemory(level);if(level>=TRIM_MEMORY_RUNNING_LOW)ProbeBudget.pause(60000);}
     @Override protected void onStop(){
-        if(lanImport!=null){lanImport.close();lanImport=null;}handler.removeCallbacks(autoHideDrawer);if(drawerOpen)closeDrawer();stopped=true;digits="";handler.removeCallbacks(tuneNumber);generation++;cancelTimeout();
+        if(lanImport!=null){lanImport.close();lanImport=null;}handler.removeCallbacks(autoHideDrawer);if(drawerOpen)closeDrawer();stopped=true;heldChannel=null;heldFavorite=false;handler.removeCallbacks(favoriteHold);digits="";handler.removeCallbacks(tuneNumber);generation++;cancelTimeout();
         if(player!=null){video.setPlayer(null);player.release();player=null;}
         ProbeBudget.foreground(false);if(ready)io.execute(()->Health.queueUncertain(this));super.onStop();
     }

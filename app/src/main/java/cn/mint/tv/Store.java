@@ -71,20 +71,17 @@ public final class Store {
   boolean profileChanged=!active.sameNetwork(desired);
   boolean due=forceLists||now-prefs(c).getLong("baseTime",0)>24*3600000L;
   boolean needBase=profileChanged||due||!prefs(c).contains("province");
-  int ok=0,fail=0;boolean changed=false,swapped=false;String reason="";
+  int imported=0,importFailed=0;boolean baseSuccess=false;int ok=0,fail=0;boolean changed=false,swapped=false;String reason="";
   if(needBase){
    try{PlaylistDownload.Result downloaded=PlaylistDownload.load(desired.url());String text=downloaded.text;if(Playlist.parse(text).isEmpty())throw new IOException("匹配地区的源列表为空");
     prefs(c).edit().putString("base",text).putString("province",desired.province).putString("carrier",desired.carrier)
-     .putString("baseOrigin",downloaded.origin).putLong("baseTime",now).apply();ok++;changed=true;swapped=profileChanged;android.util.Log.i("MintTV","PLAYLIST_UPDATED "+desired.key());
+     .putString("baseOrigin",downloaded.origin).putLong("baseTime",now).apply();ok++;baseSuccess=true;changed=true;swapped=profileChanged;android.util.Log.i("MintTV","PLAYLIST_UPDATED "+desired.key());
    }catch(Exception e){fail++;reason="暂时无法获取匹配列表，请检查网络或手动选择地区";}
   }
   if(due){JSONArray a=imports(c);for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);String url=o.optString("url");if(url.isEmpty())continue;
-   try{String t=fetch(url);if(Playlist.parse(t).isEmpty())throw new IOException("列表为空");synchronized(Store.class){JSONArray latest=imports(c);for(int j=0;j<latest.length();j++)if(latest.optJSONObject(j).optString("url").equals(url))latest.optJSONObject(j).put("text",t);prefs(c).edit().putString("imports",latest.toString()).apply();}ok++;changed=true;}catch(Exception e){fail++;}
+   try{String t=fetch(url);if(Playlist.parse(t).isEmpty())throw new IOException("列表为空");synchronized(Store.class){JSONArray latest=imports(c);for(int j=0;j<latest.length();j++)if(latest.optJSONObject(j).optString("url").equals(url))latest.optJSONObject(j).put("text",t).put("updateError","");prefs(c).edit().putString("imports",latest.toString()).apply();}ok++;imported++;changed=true;}catch(Exception e){fail++;importFailed++;synchronized(Store.class){JSONArray latest=imports(c);for(int j=0;j<latest.length();j++)if(latest.optJSONObject(j).optString("url").equals(url))try{latest.optJSONObject(j).put("updateError","更新失败，保留原频道；请检查订阅地址或服务是否仍可访问");}catch(Exception ignored){}prefs(c).edit().putString("imports",latest.toString()).apply();}}
   }}
-  String result=fail>0?"更新 "+ok+" 个，失败 "+fail+" 个 · 保留原可用列表\n"+reason
-   :swapped?"已匹配 "+desired.label()+"，更新频道源"
-   :ok>0?"更新完成 · "+activeProfile(c).label()+" · "+ok+" 个订阅"
-   :"省份与运营商未变化 · 保留现有频道源";
+  String result=RefreshStatus.summary(needBase,baseSuccess,activeProfile(c).label(),imported,importFailed);
   if(!needBase)android.util.Log.i("MintTV","NETWORK_RETAIN "+active.key());
   if(!geoNote.isEmpty())result+="\n"+geoNote;
   prefs(c).edit().putLong("attempt",now).putString("result",result).apply();

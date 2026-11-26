@@ -4,11 +4,9 @@
 
 **[下载正式版本](https://github.com/microzjs/mint-tv/releases/latest)** · [使用与网络说明](docs/network-routing.md)
 
-当前正式版：**[1.6.3](https://github.com/microzjs/mint-tv/releases/tag/v1.6.3)**。下载 Release 中的 `mint-tv-1.6.3.apk`，安装到电视盒子即可使用；已安装用户可直接覆盖升级，保留收藏和导入。
+当前正式版：**[1.6.5](https://github.com/microzjs/mint-tv/releases/tag/v1.6.5)**。下载 Release 中的 `mint-tv-1.6.5.apk`，安装到电视盒子即可使用；已安装用户可直接覆盖升级，保留收藏和导入。
 
 **后续升级**：设置 → 系统更新。检测到新正式版后自动下载并打开系统安装器；首次可能需要允许安装更新，安装时按系统提示确认。更新会校验包名、版本和签名，不会先卸载软件。
-
-**1.6.5 候选版**已调整首次无内置频道源、画幅、焦点回路、详情显示和使用说明，已完成首次网络测试，本轮精简文案与排版。[改动与验证范围](docs/release-1.6.5.md)
 
 ## 它能做什么
 
@@ -72,7 +70,7 @@
 
 Android 6.0+，面向 Android TV／Google TV 遥控器，兼容手机。覆盖安装保留收藏和导入；不要为了签名不匹配而直接卸载。正式发布指 GitHub 的非预览 Release，本次沿用设备已有签名，未更换证书。
 
-[开发与构建](docs/development.md) · [本版发布说明](docs/release-1.6.3.md) · [历史版本记录](docs/validation-1.4.0.md)
+[开发与构建](docs/development.md) · [本版发布说明](docs/release-1.6.5.md) · [历史版本记录](docs/validation-1.4.0.md)
 
 播放器使用 AndroidX Media3，二维码使用 ZXing。界面和图标为原生实现。请仅使用有权访问的直播源。
 

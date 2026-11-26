@@ -2,7 +2,7 @@
 
 ## 原因与设备恢复
 
-2026-11-21，在小米 14（Android 16）复现了退出播放器后 Clash 和 Gmail 仍横屏的现象。设备当时的系统状态为 `accelerometer_rotation=0`、`user_rotation=1`，即关闭自动旋转且锁定方向为横屏。
+2026-11-21，在小米 14（Android 16）复现了退出播放器后 其他应用 和 Gmail 仍横屏的现象。设备当时的系统状态为 `accelerometer_rotation=0`、`user_rotation=1`，即关闭自动旋转且锁定方向为横屏。
 
 进一步控制变量测试确认：在系统竖屏锁定、播放器正在横屏显示时执行 `adb shell uiautomator dump`，命令结束后 `user_rotation` 会从 `0` 变为 `1`。此前界面验收使用了此命令，留下了错误的系统锁定方向。应用本身没有写入系统旋转设置，也没有申请 WRITE_SETTINGS 权限。
 
@@ -24,14 +24,14 @@ AOSP 的 [UiAutomationConnection](https://github.com/aosp-mirror/platform_framew
 | 操作 | 实际显示方向 | 结果 |
 | --- | --- | --- |
 | 打开薄荷电视 | 横屏，rotation=1 | 通过 |
-| Home 最小化后打开 Clash Meta | 竖屏，rotation=0 | 通过 |
+| Home 最小化后打开 其他应用 | 竖屏，rotation=0 | 通过 |
 | 直接从薄荷电视切至 Gmail | 竖屏，rotation=0 | 通过 |
-| 直接切至另一个 Clash 客户端 | 竖屏，rotation=0 | 通过 |
+| 直接切至另一个 其他应用 | 竖屏，rotation=0 | 通过 |
 | 返回薄荷电视 | 横屏，rotation=1 | 通过 |
 | 全屏观看后 Home 最小化，再开 Gmail | 竖屏，rotation=0 | 通过 |
 | 恢复全屏，返回列表，再确认退出 | 应用 Activity 和任务移除 | 通过 |
 | 确认退出后打开 Gmail | 竖屏，rotation=0 | 通过 |
-| 退出后重新打开，再最小化到 Clash Meta | 应用横屏、Clash 竖屏 | 通过 |
+| 退出后重新打开，再最小化到 其他应用 | 应用横屏、其他应用 竖屏 | 通过 |
 | 最后返回桌面 | 竖屏，rotation=0 | 通过 |
 
 以上过程中的系统设置持续保持 `accelerometer_rotation=0`、`user_rotation=0`。CCTV1 在新版本播放并出画面；解析测试、release 构建和 Android Lint 通过。此轮没有实体电视盒子可供回归。

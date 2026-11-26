@@ -1,0 +1,27 @@
+name: Refresh release descriptions
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  refresh:
+    if: contains(github.event.head_commit.message, '[refresh-release-notes]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync maintained release descriptions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release list --limit 100 --json tagName --jq '.[].tagName' > /tmp/mint-release-tags.txt
+          while IFS= read -r tag; do
+            if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              notes="docs/release-${tag#v}.md"
+              if [[ -f "$notes" ]]; then
+                gh release edit "$tag" --notes-file "$notes"
+              fi
+            fi
+          done < /tmp/mint-release-tags.txt

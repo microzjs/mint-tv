@@ -13,7 +13,7 @@ final class AppUpdate {
  static String version(android.content.Context c){try{return c.getPackageManager().getPackageInfo(c.getPackageName(),0).versionName;}catch(Exception e){return "未知";}}
  void check(){
   if(busy){a.toast("正在检查或下载更新");return;}busy=true;canceled=false;
-  progress=new ProgressDialog(a);progress.setTitle("系统更新");progress.setMessage("正在检查 GitHub 最新正式版…");progress.setCancelable(true);progress.setOnCancelListener(d->cancel());progress.show();
+  progress=new ProgressDialog(a);progress.setTitle("系统更新");progress.setMessage("正在检查最新正式版…");progress.setCancelable(true);progress.setOnCancelListener(d->cancel());progress.show();
   worker.execute(()->{
    OkHttpClient client=new OkHttpClient.Builder().callTimeout(120,TimeUnit.SECONDS).connectTimeout(10,TimeUnit.SECONDS).readTimeout(20,TimeUnit.SECONDS).followSslRedirects(false).build();
    File partial=null;
@@ -34,7 +34,7 @@ final class AppUpdate {
     if(count!=release.size)throw new IOException();String hash=hex(digest.digest());if(!release.digest.isEmpty()&&!release.digest.substring(7).equalsIgnoreCase(hash))throw new IOException();
     validate(partial,release.version);File target=new File(dir,"update.apk");if(target.exists()&&!target.delete())throw new IOException();if(!partial.renameTo(target))throw new IOException();
     main.post(()->{finish();if(alive()&&!canceled){pending=target;expectedVersion=release.version;install();}});
-   }catch(Exception e){if(!canceled)done("更新未完成，请检查 GitHub 网络连接后重试；现有版本和数据不受影响");}
+   }catch(Exception e){if(!canceled)done("更新未完成，请检查网络连接后重试；现有版本和数据不受影响");}
    finally{if(canceled)main.post(this::finish);if(partial!=null&&partial.exists())partial.delete();client.connectionPool().evictAll();client.dispatcher().executorService().shutdown();}
   });
  }
@@ -62,7 +62,7 @@ final class AppUpdate {
    }
    Uri uri=Uri.parse("content://"+a.getPackageName()+".updates/apk");
    Intent intent=new Intent(Intent.ACTION_INSTALL_PACKAGE).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);intent.setClipData(ClipData.newRawUri("应用更新",uri));a.startActivity(intent);pending=null;
-  }catch(Exception e){a.toast("无法打开系统安装器，请到 GitHub 下载页手动安装");}
+  }catch(Exception e){a.toast("无法打开系统安装器，请到软件下载页手动安装");}
  }
  void permissionReturned(){if(Build.VERSION.SDK_INT<26||a.getPackageManager().canRequestPackageInstalls())install();else a.toast("安装授权未开启，可稍后在系统更新中重试");}
  boolean alive(){return !a.isDestroyed()&&!a.isFinishing();}

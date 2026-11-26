@@ -361,7 +361,7 @@ public class MainActivity extends Activity {
         ProbeBudget.foreground(true);ProbeBudget.pause(8000);cancelTimeout();initPlayer();videoDecoder="等待解码";audioDecoder="等待解码";rendered=false;
         generation++;int g=generation;setPlaybackState("正在连接 · 线路 "+(sourceIndex+1)+" / "+current.urls.size());player.stop();
         String url=current.urls.get(sourceIndex);
-        if(url.startsWith("rtp://")||url.startsWith("rtsp://")){handler.post(()->{if(g==generation)advance("此协议需导入 HTTP 代理源");});return;}
+        if(url.startsWith("rtp://")||url.startsWith("rtsp://")){handler.post(()->{if(g==generation)advance("请导入 HTTP/HTTPS 直播源");});return;}
         player.setMediaItem(MediaItem.fromUri(Uri.parse(url)));player.prepare();player.play();armTimeout();
     }
     void armTimeout(){cancelTimeout();final int g=generation;timeout=()->{if(g==generation&&!stopped)advance("连接或缓冲超时");};handler.postDelayed(timeout,14000);}
@@ -460,7 +460,7 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("薄荷电视 "+AppUpdate.version(this)+" · "+Store.profileLabel(this))
             .setView(settingsContent((Store.isManual(this)?"手动模式":"自动适配")+"\n"+Store.prefs(this).getString("geoStatus","首次联网后识别省份和运营商")
                 +"\n列表来源："+Store.prefs(this).getString("baseOrigin",t==0?"无内置源":"上次缓存")+"\n最近源更新："+date+"\n"+Store.prefs(this).getString("result","")
-                +"\n\n首次及网络变化时识别公网出口的省份 / 运营商；匹配不变保留原源，每日更新列表。识别或下载失败保留缓存。代理 / VPN 可能改变识别结果，可手动选择。"
+                +"\n\n首次及网络变化时识别公网出口的省份 / 运营商；匹配不变保留原源，每日更新列表。识别或下载失败保留缓存。识别结果不准确时，可手动选择。"
                 +"\n\n确定打开直播选台，左右切换分类和频道，返回先收起选台。菜单键选择线路。"))
             .setPositiveButton("更新频道源",(d,w)->refresh(true,true)).setNeutralButton("系统更新",(d,w)->updater().check()).setNegativeButton("更多设置",(d,w)->new TvTools(this).show()).show();
     }

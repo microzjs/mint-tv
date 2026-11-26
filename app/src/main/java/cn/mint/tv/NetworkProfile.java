@@ -35,6 +35,7 @@ public final class NetworkProfile {
         return false;
     }
 
+    public static NetworkProfile saved(String province,String carrier){try{return new NetworkProfile(province,carrier);}catch(Exception e){return null;}}
     public String key() { return province + "/" + carrier; }
     public boolean sameNetwork(NetworkProfile other) {
         return other != null && key().equals(other.key());

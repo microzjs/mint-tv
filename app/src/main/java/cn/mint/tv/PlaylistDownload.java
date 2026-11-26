@@ -15,13 +15,13 @@ public final class PlaylistDownload {
     }
     static String[] candidates(String url){
         if(!url.startsWith(PREFIX))throw new IllegalArgumentException("仅支持内置公开列表");
-        return new String[]{url,"https://cdn.jsdelivr.net/gh/xisohi/CHINA-IPTV@main/Unicast/"+url.substring(PREFIX.length())};
+        return new String[]{url};
     }
     static Result load(String url,Fetcher fetcher,Clock clock)throws IOException {
         long deadline=clock.millis()+8000;String[] urls=candidates(url);
         for(int i=0;i<urls.length;i++){
             long remaining=deadline-clock.millis();if(remaining<=0)break;
-            try{String text=fetcher.fetch(urls[i],Math.min(i==0?3500:4500,remaining));
+            try{String text=fetcher.fetch(urls[i],remaining);
                 if(clock.millis()<=deadline&&!Playlist.parse(text).isEmpty())return new Result(text,i==0?"上游列表":"备用下载");
             }catch(Exception ignored){}
         }

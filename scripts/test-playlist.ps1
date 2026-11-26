@@ -10,7 +10,7 @@ try {
     }
     & $compiler -encoding UTF-8 -d build/parser-tests app/src/main/java/cn/mint/tv/Playlist.java app/src/main/java/cn/mint/tv/NetworkProfile.java tests/PlaylistTest.java tests/NetworkProfileTest.java
     if ($LASTEXITCODE -ne 0) { throw 'Parser test compilation failed' }
-    & $runtime -cp build/parser-tests PlaylistTest app/src/main/assets/fujian-mobile.txt
+    & $runtime -cp build/parser-tests PlaylistTest tests/fixtures/fujian-mobile.txt
     if ($LASTEXITCODE -ne 0) { throw 'Parser tests failed' }
     & $runtime -cp build/parser-tests NetworkProfileTest
     if ($LASTEXITCODE -ne 0) { throw 'Network profile tests failed' }

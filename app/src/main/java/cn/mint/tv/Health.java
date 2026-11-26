@@ -9,7 +9,7 @@ import java.util.*;
 public final class Health {
     static final int JOB=2402;
     public static synchronized void ensure(Context c,boolean force){
-        if(!Store.prefs(c).contains("province"))return;
+        if(Store.activeProfile(c)==null)return;
         String scope=Store.activeProfile(c).key();
         if(!force&&scope.equals(Store.prefs(c).getString("healthScope",""))){
             upgradeQuality(c);
@@ -43,7 +43,7 @@ public final class Health {
     static synchronized JSONObject results(Context c){String text=Store.prefs(c).getString("healthResults","{}");
         if(text!=cachedText){try{cachedResults=new JSONObject(text);}catch(Exception e){cachedResults=new JSONObject();}cachedText=text;}return cachedResults;
     }
-    static boolean valid(Context c){return Store.activeProfile(c).key().equals(Store.prefs(c).getString("healthScope",""));}
+    static boolean valid(Context c){return Store.activeProfile(c)!=null&&Store.activeProfile(c).key().equals(Store.prefs(c).getString("healthScope",""));}
     public static synchronized boolean hidden(Context c,Playlist.Channel channel){
         JSONObject r=valid(c)?results(c).optJSONObject(Playlist.key(channel.name)):null;return r!=null&&r.optBoolean("hidden");
     }
